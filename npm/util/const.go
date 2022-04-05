@@ -117,12 +117,15 @@ const (
 
 	// Below are the skb->mark NPM will use for different criteria
 	// Deprecated
-	IptablesAzureClearMarkHex string = "0x0/0x00000F00"
+	IptablesAzureClearMarkHex string = "0x0/0xE00"
 
 	// marks in NPM v2
-	IptablesAzureIngressAllowMarkHex string = "0x200/0x200" // same as old IptablesAzureIngressMarkHex
+	// NPM uses the 3rd word of the 32-bit mark for the purpose of
+	// identifying the traffic direction and decision making.
+	// NPM uses 9th, 10th and 11th bit for marking
+	IptablesAzureIngressAllowMarkHex string = "0x200/0x200"
 	IptablesAzureIngressDropMarkHex  string = "0x400/0x400"
-	IptablesAzureEgressDropMarkHex   string = "0x500/0x500"
+	IptablesAzureEgressDropMarkHex   string = "0x800/0x800"
 
 	// marks in NPM v1
 	IptablesAzureIngressMarkHex string = "0x2000"
