@@ -116,8 +116,10 @@ const (
 	IptablesAzureEgressToPodChain    string = "AZURE-NPM-EGRESS-TO-POD"
 
 	// Below are the skb->mark NPM will use for different criteria
-	// Deprecated
-	IptablesAzureClearMarkHex string = "0x0/0xE00"
+	// for V1
+	IptablesAzureClearMarkHex string = "0x0"
+	// for v2, deprecated
+	IptablesAzureClearMarkHexV2 string = "0x0/0xE00"
 
 	// marks in NPM v2
 	// NPM uses the 3rd word of the 32-bit mark for the purpose of
