@@ -6,8 +6,8 @@ SSH     = $(HOME)/.ssh
 AZCFG   = $(HOME)/.azure
 AZIMG   = mcr.microsoft.com/azure-cli
 REPO_ROOT  = $(shell git rev-parse --show-toplevel)
-CONFIG  = $(REPO_ROOT)/hack/swift
-AZCLI   ?= docker run --rm -v $(AZCFG):/root/.azure -v $(KUBECFG):/root/.kube -v $(SSH):/root/.ssh -v $(Build.SourcesDirectory):/tmpsrc $(AZIMG) az
+CONFIG  = $(Build.SourcesDirectory)/hack/swift
+AZCLI   ?= docker run --rm -v $(AZCFG):/root/.azure -v $(KUBECFG):/root/.kube -v $(SSH):/root/.ssh -v $(CONFIG):/tmpsrc $(AZIMG) az
 
 # overrideable defaults
 REGION     ?= westus2
