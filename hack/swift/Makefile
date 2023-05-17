@@ -6,7 +6,7 @@ SSH     = $(HOME)/.ssh
 AZCFG   = $(HOME)/.azure
 AZIMG   = mcr.microsoft.com/azure-cli
 REPO_ROOT  = $(shell git rev-parse --show-toplevel)
-CONFIG  = $(Build.SourcesDirectory)/hack/swift
+CONFIG  = $(Build.SourcesDirectory)/hack/swift/kube-proxy.json
 AZCLI   ?= docker run --rm -v $(AZCFG):/root/.azure -v $(KUBECFG):/root/.kube -v $(SSH):/root/.ssh -v $(CONFIG):/tmpsrc $(AZIMG) az
 
 # overrideable defaults
