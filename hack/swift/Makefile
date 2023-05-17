@@ -5,7 +5,7 @@ KUBECFG = $(HOME)/.kube
 SSH     = $(HOME)/.ssh
 AZCFG   = $(HOME)/.azure
 AZIMG   = mcr.microsoft.com/azure-cli
-AZCLI   ?= docker run --rm -v $(AZCFG):/root/.azure -v $(KUBECFG):/root/.kube -v $(SSH):/root/.ssh $(AZIMG) az
+AZCLI   ?= docker run --rm -v $(AZCFG):/root/.azure -v $(KUBECFG):/root/.kube -v $(SSH):/root/.ssh -v $(PWD):/tmpsrc $(AZIMG) az
 
 # overrideable defaults
 REGION     ?= westus2
@@ -93,6 +93,7 @@ overlay-byocni-up: rg-up overlay-net-up ## Brings up an Overlay BYO CNI cluster
 		--pod-cidr 192.168.0.0/16 \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
 		--no-ssh-key \
+		--kube-proxy-config /tmpsrc/kube-proxy.json \
 		--yes
 	@$(MAKE) set-kubeconf
 
@@ -133,6 +134,7 @@ swift-byocni-up: rg-up swift-net-up ## Bring up a SWIFT BYO CNI cluster
 		--pod-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/podnet \
 		--no-ssh-key \
 		--os-sku $(OS_SKU) \
+		--kube-proxy-config /tmpsrc/kube-proxy.json \
 		--yes
 	@$(MAKE) set-kubeconf
 
@@ -169,3 +171,7 @@ down: ## Delete the cluster
 
 restart-vmss: ## Restarts the nodes in the cluster
 	$(AZCLI) vmss restart -g MC_${GROUP}_${CLUSTER}_${REGION} --name $(VMSS_NAME)
+
+
+disable-kube-proxy: ## Disable kube-proxy from an existing cluster
+	$(AZCLI) aks update -g $(GROUP) -n $(CLUSTER) --kube-proxy-config /tmpsrc/kube-proxy.json 
