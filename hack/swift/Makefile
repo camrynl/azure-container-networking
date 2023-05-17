@@ -5,7 +5,8 @@ KUBECFG = $(HOME)/.kube
 SSH     = $(HOME)/.ssh
 AZCFG   = $(HOME)/.azure
 AZIMG   = mcr.microsoft.com/azure-cli
-AZCLI   ?= docker run --rm -v $(AZCFG):/root/.azure -v $(KUBECFG):/root/.kube -v $(SSH):/root/.ssh -v $(CURDIR):/tmpsrc $(AZIMG) az
+CONFIG_DIR       =       $(shell pwd)
+AZCLI   ?= docker run --rm -v $(AZCFG):/root/.azure -v $(KUBECFG):/root/.kube -v $(SSH):/root/.ssh -v $(CONFIG_DIR):/tmpsrc $(AZIMG) az
 
 # overrideable defaults
 REGION     ?= westus2
@@ -46,6 +47,9 @@ unset-kubeconf: ## Deletes the kubeconf for $CLUSTER
 
 shell: ## print $AZCLI so it can be used outside of make
 	@echo $(AZCLI)
+
+config-dir: ## print kube-proxy config directory
+	@echo $(CONFIG_DIR)
 
 vars: ## Show the input vars configured for the cluster commands
 	@echo CLUSTER=$(CLUSTER)
