@@ -47,9 +47,6 @@ unset-kubeconf: ## Deletes the kubeconf for $CLUSTER
 shell: ## print $AZCLI so it can be used outside of make
 	@echo $(AZCLI)
 
-config-dir: ## print kube-proxy config directory
-	@echo $(CONFIG)
-
 vars: ## Show the input vars configured for the cluster commands
 	@echo CLUSTER=$(CLUSTER)
 	@echo GROUP=$(GROUP)
@@ -96,8 +93,7 @@ overlay-byocni-up: rg-up overlay-net-up ## Brings up an Overlay BYO CNI cluster
 		--pod-cidr 192.168.0.0/16 \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
 		--no-ssh-key \
-		--yes \
-		--verbose
+		--yes
 	@$(MAKE) set-kubeconf
 
 overlay-cilium-up: rg-up overlay-net-up ## Brings up an Overlay AzCNI cluster
@@ -137,8 +133,7 @@ swift-byocni-up: rg-up swift-net-up ## Bring up a SWIFT BYO CNI cluster
 		--pod-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/podnet \
 		--no-ssh-key \
 		--os-sku $(OS_SKU) \
-		--yes \
-		--verbose
+		--yes
 	@$(MAKE) set-kubeconf
 
 swift-cilium-up: rg-up swift-net-up ## Bring up a SWIFT Cilium cluster
