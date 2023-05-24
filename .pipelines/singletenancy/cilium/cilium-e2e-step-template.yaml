@@ -32,7 +32,7 @@ steps:
         mkdir -p ~/.kube/
         echo "Create AKS cluster"
         make -C ./hack/swift azcfg AZCLI=az REGION=$(REGION_AKS_CLUSTER_TEST)
-        make -C ./hack/swift byocni-up AZCLI=az REGION=$(REGION_AKS_CLUSTER_TEST) SUB=$(SUB_AZURE_NETWORK_AGENT_TEST) CLUSTER=${{ parameters.clusterName }}-$(make revision)
+        make -C ./hack/swift swift-no-kube-proxy-up AZCLI=az REGION=$(REGION_AKS_CLUSTER_TEST) SUB=$(SUB_AZURE_NETWORK_AGENT_TEST) CLUSTER=${{ parameters.clusterName }}-$(make revision)
         echo "Update cluster and remove kube-proxy"
         az aks update -n ${{ parameters.clusterName }}-$(make revision) -g ${{ parameters.clusterName }}-$(make revision) --kube-proxy-config ./hack/swift/kube-proxy.json
         echo "Cluster successfully created"
