@@ -17,7 +17,7 @@ do
     echo "Node internal ip: $node_ip"
     # Check pod count after restarting nodes, statefile does not exist after restart
     echo "checking whether the node has any pods deployed to it or not"
-    pod_count=$(kubectl get pods -A -o wide | grep "azure-cns" -c)
+    pod_count=$(kubectl get pods -A -o wide | grep "container" -c)
     if [[ $pod_count -eq 0 ]]; then
         echo "Skipping validation for this node. No pods were deployed after the restart, so no statefile exists"
         continue
