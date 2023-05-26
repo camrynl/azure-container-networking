@@ -38,7 +38,7 @@ do
             kubectl exec -i "$privileged_pod" -n kube-system -- bash -c "cat /var/run/azure-cns/azure-endpoints.json" > azure_endpoints.json
             sleep 10
             if [ "$i" == "5" ]; then
-                if [ $restart == true]; then
+                if [ $restart == true ]; then
                     echo "node was restarted, no statefile exists"
                     continue
                 else
