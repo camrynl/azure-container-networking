@@ -1,5 +1,6 @@
 #!/bin/bash
 restart=false
+skipNode=false
 
 function find_in_array() {
     for i in $1
@@ -40,7 +41,7 @@ do
             if [ "$i" == "5" ]; then
                 if [ $restart == true ]; then
                     echo "node was restarted, no statefile exists"
-                    continue
+                    skipNode=true
                 else
                     printf "Error: Failed to get azure_endpoints.json"
                     exit 1
@@ -48,6 +49,14 @@ do
             fi
         fi
     done
+
+    if [ $skipNode == true ]; then
+        echo $skipNode
+        echo "node was restarted, skip validate state for this node"
+        # reset skipNode to false
+        skipNode=false
+        continue
+    fi
 
     cilium_agent=$(kubectl get pod -l k8s-app=cilium -n kube-system -o wide | grep "$node_name" | awk '{print $1}')
     echo "cilium agent : $cilium_agent"
