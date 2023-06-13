@@ -1,9 +1,9 @@
-# exit on error
-set -e
+#!/bin/bash
+
 
 printHelp() {
     cat <<EOF
-./test-scale.sh --max-kwok-pods-per-node=<int> --num-kwok-deployments=<int> --num-kwok-replicas=<int> --max-real-pods-per-node=<int> --num-real-deployments=<int> --num-real-replicas=<int> --num-network-policies=<int> --num-unapplied-network-policies=<int> --num-unique-labels-per-pod=<int> --num-unique-labels-per-deployment=<int> --num-shared-labels-per-pod=<int> [--kubeconfig=<path>] [--kubectl-binary=<path>] [--restart-npm] [--debug-exit-after-print-counts] [--debug-exit-after-generation]
+./test-scale.sh --max-kwok-pods-per-node=<int> --num-kwok-deployments=<int> --num-kwok-replicas=<int> --max-real-pods-per-node=<int> --num-real-deployments=<int> --num-real-replicas=<int> --num-network-policies=<int> --num-unapplied-network-policies=<int> --num-unique-labels-per-pod=<int> --num-unique-labels-per-deployment=<int> --num-shared-labels-per-pod=<int> [--kubeconfig=<path>] [--restart-npm] [--debug-exit-after-print-counts] [--debug-exit-after-generation]
 (more optional parameters at end of this message)
 
 Scales the number of Pods, Pod labels, and NetworkPolicies in a cluster.
@@ -35,8 +35,7 @@ REQUIRED PARAMETERS:
     --num-shared-labels-per-pod           create labels shared between all Pods. Creates numSharedLabelsPerPod distinct labels. Must be >= 3 if numNetworkPolicies > 0 because of the way we generate network policies
 
 OPTIONAL PARAMETERS:
-    --kubeconfig=<path>                   path to kubeconfig file
-    --kubectl-binary=<path>               path to kubectl binary. Default is kubectl
+    --kubeconfig                          path to kubeconfig file
     --restart-npm                         make sure NPM exists and restart it before running scale test
     --debug-exit-after-print-counts       skip scale test. Just print out counts of things to be created and counts of IPSets/ACLs that NPM would create
     --debug-exit-after-generation         skip scale test. Exit after generating templates
@@ -78,6 +77,9 @@ while [[ $# -gt 0 ]]; do
         --num-real-deployments=*)
             numRealDeployments="${1#*=}"
             ;;
+        --num-real-svc=*)
+            numRealServices="${1#*=}"
+            ;;
         --num-real-replicas=*)
             numRealReplicas="${1#*=}"
             ;;
@@ -104,14 +106,6 @@ while [[ $# -gt 0 ]]; do
                 exit 1
             }
             echo "using kubeconfig: $file"
-            ;;
-        --kubectl-binary=*)
-            KUBECTL=${1#*=}
-            test -f $KUBECTL || { 
-                echo "ERROR: kubectl binary not found: [$KUBECTL]"
-                exit 1
-            }
-            echo "using kubectl binary: $KUBECTL"
             ;;
         --restart-npm)
             USING_NPM=true
@@ -173,9 +167,6 @@ if [[ $numNetworkPolicies -gt 0 && $numSharedLabelsPerPod -lt 3 ]]; then
     exit 1
 fi
 
-if [[ -z $KUBECTL ]]; then
-    KUBECTL="kubectl"
-fi
 if [[ -z $deletePodsInterval ]]; then deletePodsInterval=60; fi
 if [[ -z $deletePodsTimes ]]; then deletePodsTimes=1; fi
 if [[ -z $deleteLabelsInterval ]]; then deleteLabelsInterval=60; fi
@@ -219,6 +210,7 @@ maxKwokPodsPerNode=$maxKwokPodsPerNode
 numKwokDeployments=$numKwokDeployments
 numKwokReplicas=$numKwokReplicas
 numRealDeployments=$numRealDeployments
+numRealServices=$numRealServices
 numRealReplicas=$numRealReplicas
 numSharedLabelsPerPod=$numSharedLabelsPerPod
 numUniqueLabelsPerPod=$numUniqueLabelsPerPod
@@ -256,25 +248,6 @@ if [[ $DEBUG_EXIT_AFTER_PRINT_COUNTS == true ]]; then
     exit 0
 fi
 
-## HELPER FUNCTIONS
-wait_for_pods() {
-    # wait for all pods to run
-    minutesToWaitForRealPods=$(( 10 + $numRealPods / 250 ))
-    set -x
-    if [[ $numRealPods -gt 0 ]]; then
-        $KUBECTL $KUBECONFIG_ARG wait --for=condition=Ready pods -n scale-test -l is-real=true --all --timeout="${minutesToWaitForRealPods}m"
-    fi
-    set +x
-
-    # just make sure kwok pods are Running, not necessarily Ready (sometimes kwok pods have NodeNotReady even though the node is ready)
-    minutesToWaitForKwokPods=$(( 1 + $numKwokPods / 500 ))
-    set -x
-    if [[ $numKwokPods -gt 0 ]]; then
-        $KUBECTL $KUBECONFIG_ARG wait --for=condition=Initialized pods -n scale-test -l is-kwok=true --all --timeout="${minutesToWaitForKwokPods}m"
-    fi
-    set +x
-}
-
 ## FILE SETUP
 echo "Cleaning up generated/ directory..."
 test -d generated && rm -rf generated/
@@ -282,6 +255,7 @@ mkdir -p generated/networkpolicies/applied
 mkdir -p generated/networkpolicies/unapplied
 mkdir -p generated/kwok-nodes
 mkdir -p generated/deployments/real/
+mkdir -p generated/services/real/
 mkdir -p generated/deployments/kwok/
 
 generateDeployments() {
@@ -316,10 +290,48 @@ generateDeployments() {
     done
 }
 
+
+generateService(){
+    local numServices=$1
+    local sevKind=$2
+
+    for i in $(seq -f "%05g" 1 $numServices); do
+        name="$sevKind-svc-$i"
+        deploymentName="$sevKind-dep-$i"
+        labelPrefix="$sevKind-svc-lab-$i"
+        outFile=generated/services/$sevKind/$name.yaml
+        # touch $outFile
+        sed "s/TEMP_NAME/$name/g" templates/$sevKind-service.yaml > $outFile
+        sed -i "s/TEMP_DEPLOYMENT_NAME/$deploymentName/g" $outFile
+
+    done
+}
+
+retry_kubectl() {
+    local cmd=$1
+    local maxRetries=5
+    local sleepTime=2s
+    local retries=0
+    local ret=1
+    echo "Running $cmd"
+    while [[ $retries -lt $maxRetries ]]; do
+        cmd_out=$($cmd)
+        ret=$?
+        if [[ $ret -eq 0 ]]; then
+            echo "$cmd_out"
+            return 0
+        fi
+        retries=$(( $retries + 1 ))
+        sleep $sleepTime
+    done
+    return $ret
+}
+
 echo "Generating yamls..."
 
-generateDeployments $numKwokDeployments $numKwokReplicas kwok
+# generateDeployments $numKwokDeployments $numKwokReplicas kwok
 generateDeployments $numRealDeployments $numRealReplicas real
+generateService $numRealServices real
 
 for j in $(seq 1 $numNetworkPolicies); do
     valNum=$j
@@ -359,22 +371,22 @@ fi
 
 ## VALIDATE REAL NODES
 echo "checking if there are enough real nodes..."
-numRealNodes=$($KUBECTL $KUBECONFIG_ARG get nodes -l scale-test=true | grep -v NAME | wc -l)
-if [[ $numRealNodes -lt $numRealNodesRequired ]]; then
-    $KUBECTL $KUBECONFIG_ARG get nodes
-    echo "ERROR: need $numRealNodesRequired real nodes to achieve a scale of $numRealPods real Pods. Make sure to label nodes with: kubectl label node <name> scale-test=true"
-    exit 1
-fi
+# numRealNodes=$(kubectl $KUBECONFIG_ARG get nodes -l scale-test=true | grep -v NAME | wc -l)
+# if [[ $numRealNodes -lt $numRealNodesRequired ]]; then
+#     kubectl $KUBECONFIG_ARG get nodes
+#     echo "ERROR: need $numRealNodesRequired real nodes to achieve a scale of $numRealPods real Pods. Make sure to label nodes with: kubectl label node <name> scale-test=true"
+#     exit 1
+# fi
 
 ## DELETE PRIOR STATE
 echo "cleaning up previous scale test state..."
-$KUBECTL $KUBECONFIG_ARG delete ns scale-test connectivity-test --ignore-not-found
-$KUBECTL $KUBECONFIG_ARG delete node -l type=kwok
+retry_kubectl "kubectl $KUBECONFIG_ARG delete ns new-testing scale-test --ignore-not-found"
+retry_kubectl "kubectl $KUBECONFIG_ARG delete node -l type=kwok"
 
 if [[ $USING_NPM == true ]]; then
     echo "restarting NPM pods..."
-    $KUBECTL $KUBECONFIG_ARG rollout restart -n kube-system ds azure-npm
-    $KUBECTL $KUBECONFIG_ARG rollout restart -n kube-system ds azure-npm-win
+    kubectl $KUBECONFIG_ARG rollout restart -n kube-system ds azure-npm
+    kubectl $KUBECONFIG_ARG rollout restart -n kube-system ds azure-npm-win
     echo "sleeping 3m to allow NPM pods to restart..."
     sleep 1m
     echo "2m remaining..."
@@ -383,13 +395,13 @@ if [[ $USING_NPM == true ]]; then
     sleep 1m
 
     echo "making sure NPM pods are running..."
-    $KUBECTL $KUBECONFIG_ARG get pod -n kube-system | grep Running | grep -v "azure-npm-win" | grep -oP "azure-npm-[a-z0-9]+" -m 1
+    kubectl $KUBECONFIG_ARG get pod -n kube-system | grep Running | grep -v "azure-npm-win" | grep -oP "azure-npm-[a-z0-9]+" -m 1
     if [[ $? != 0 ]]; then
         echo "No Linux NPM pod running. Exiting."
         exit 1
     fi
 
-    $KUBECTL $KUBECONFIG_ARG get pod -n kube-system | grep Running | grep -oP "azure-npm-win-[a-z0-9]+" -m 1
+    kubectl $KUBECONFIG_ARG get pod -n kube-system | grep Running | grep -oP "azure-npm-win-[a-z0-9]+" -m 1
     if [[ $? != 0 ]]; then
         echo "No Windows NPM pod running. Exiting."
         exit 1
@@ -402,41 +414,35 @@ if [[ $numKwokPods -gt 0 ]]; then
     sleep 10s
 fi
 
+start=$(date +%s)
 startDate=`date -u`
 echo "STARTING RUN at $startDate"
 echo
 
 set -x
-$KUBECTL $KUBECONFIG_ARG create ns scale-test
-if [[ $numKwokNodes -gt 0 ]]; then
-    $KUBECTL $KUBECONFIG_ARG apply -f generated/kwok-nodes/
-fi
-if [[ $numRealPods -gt 0 ]]; then
-    $KUBECTL $KUBECONFIG_ARG apply -f generated/deployments/real/
-fi
-if [[ $numKwokPods -gt 0 ]]; then
-    $KUBECTL $KUBECONFIG_ARG apply -f generated/deployments/kwok/
-fi
+retry_kubectl "kubectl $KUBECONFIG_ARG create ns new-testing"
+retry_kubectl "kubectl $KUBECONFIG_ARG create ns scale-test"
+retry_kubectl "kubectl $KUBECONFIG_ARG apply -f generated/kwok-nodes/"
+retry_kubectl "kubectl $KUBECONFIG_ARG apply -f generated/deployments/real/"
+retry_kubectl "kubectl $KUBECONFIG_ARG apply -f generated/services/real/"
+
+# kubectl $KUBECONFIG_ARG apply -f generated/deployments/kwok/
 set +x
 
-add_shared_labels() {
-    if [[ $numSharedLabelsPerPod -gt 0 ]]; then
-        sharedLabels=""
-        for i in $(seq -f "%05g" 1 $numSharedLabelsPerPod); do
-            sharedLabels="$sharedLabels shared-lab-$i=val"
-        done
+if [[ $numSharedLabelsPerPod -gt 0 ]]; then
+    sharedLabels=""
+    for i in $(seq -f "%05g" 1 $numSharedLabelsPerPod); do
+        sharedLabels="$sharedLabels shared-lab-$i=val"
+    done
 
-        set -x
-        $KUBECTL $KUBECONFIG_ARG label pods -n scale-test --all $sharedLabels --overwrite
-        set +x
-    fi
-}
-
-add_shared_labels
+    set -x
+    retry_kubectl "kubectl $KUBECONFIG_ARG label deployments -n scale-test --all $sharedLabels"
+    set +x
+fi
 
 if [[ $numUniqueLabelsPerPod -gt 0 ]]; then
     count=1
-    for pod in $($KUBECTL $KUBECONFIG_ARG get pods -n scale-test -o jsonpath='{.items[*].metadata.name}'); do
+    for pod in $(kubectl $KUBECONFIG_ARG get pods -n scale-test -o jsonpath='{.items[*].metadata.name}'); do
         uniqueLabels=""
         for tmp in $(seq 1 $numUniqueLabelsPerPod); do
             i=`printf "%05d" $count`
@@ -445,21 +451,19 @@ if [[ $numUniqueLabelsPerPod -gt 0 ]]; then
         done
 
         set -x
-        $KUBECTL $KUBECONFIG_ARG label pods -n scale-test $pod $uniqueLabels
+        kubectl $KUBECONFIG_ARG label pods -n new-testing $pod $uniqueLabels
         set +x
     done
 fi
 
 set -x
-if [[ $numUnappliedNetworkPolicies -gt 0 ]]; then
-    $KUBECTL $KUBECONFIG_ARG apply -f generated/networkpolicies/unapplied
-fi
-if [[ $numNetworkPolicies -gt 0 ]]; then
-    $KUBECTL $KUBECONFIG_ARG apply -f generated/networkpolicies/applied
-fi
-set +x
+retry_kubectl "kubectl $KUBECONFIG_ARG apply -f generated/networkpolicies/unapplied"
+retry_kubectl "kubectl $KUBECONFIG_ARG apply -f generated/networkpolicies/applied"
 
-wait_for_pods
+# wait for all pods to run
+kubectl $KUBECONFIG_ARG wait --for=condition=Ready pods -n new-testing --all --timeout=105m
+set +x
+end=$(date +%s)
 
 echo
 echo "done scaling at $(date -u). Had started at $startDate."
@@ -472,82 +476,78 @@ if [[ $sleepAfterCreation != "" ]]; then
     sleep $sleepAfterCreation
 fi
 
-if [[ $deleteNetpols == true ]]; then
-    echo "deleting network policies..."
-    for i in $(seq 1 $deleteNetpolsTimes); do
-        echo "deleting network policies. round $i/$deleteNetpolsTimes..."
-        set -x
-        $KUBECTL $KUBECONFIG_ARG delete netpol -n scale-test --all
-        set +x
-        echo "sleeping $deleteNetpolsInterval seconds after deleting network policies (round $i/$deleteNetpolsTimes)..."
-        sleep $deleteNetpolsInterval
+# if [[ $deleteLabels == true && $numSharedLabelsPerPod -gt 2 ]]; then
+#     echo "deleting labels..."
+#     for i in $(seq 1 $deleteLabelsTimes); do
+#         echo "deleting labels. round $i/$deleteLabelsTimes..."
+#         set -x
+#         retry_kubectl "kubectl $KUBECONFIG_ARG label pods -n scale-test --all shared-lab-00001- shared-lab-00002- shared-lab-00003-"
+#         set +x
+#         echo "sleeping $deleteLabelsInterval seconds after deleting labels (round $i/$deleteLabelsTimes)..."
+#         sleep $deleteLabelsInterval
         
-        echo "re-adding network policies. round $i/$deleteNetpolsTimes..."
-        set -x
-        if [[ $numUnappliedNetworkPolicies -gt 0 ]]; then
-            $KUBECTL $KUBECONFIG_ARG apply -f generated/networkpolicies/unapplied
-        fi
-        if [[ $numNetworkPolicies -gt 0 ]]; then
-            $KUBECTL $KUBECONFIG_ARG apply -f generated/networkpolicies/applied
-        fi
-        set +x
-        echo "sleeping $deleteNetpolsInterval seconds after readding network policies (end of round $i/$deleteNetpolsTimes)..."
-        sleep $deleteNetpolsInterval
-    done
-fi
+#         echo "re-adding labels. round $i/$deleteLabelsTimes..."
+#         set -x
+#         retry_kubectl "kubectl $KUBECONFIG_ARG label pods -n scale-test --all shared-lab-00001=val shared-lab-00002=val shared-lab-00003=val"
+#         set +x
+#         echo "sleeping $deleteLabelsInterval seconds after readding labels (end of round $i/$deleteLabelsTimes)..."
+#         sleep $deleteLabelsInterval
+#     done
+# fi
 
-if [[ ($deleteKwokPods != "" && $deleteKwokPods -gt 0) || ($deleteRealPods != "" && $deleteRealPods -gt 0) ]]; then
-    for i in $(seq 1 $deletePodsTimes); do
-        if [[ $deleteKwokPods != "" && $deleteKwokPods -gt 0 && $numKwokPods -gt 0 ]]; then
-            echo "deleting kwok pods. round $i/$deletePodsTimes..."
-            pods=`$KUBECTL $KUBECONFIG_ARG get pods -n scale-test -l is-kwok="true" | grep -v NAME | shuf -n $deleteKwokPods | awk '{print $1}' | tr '\n' ' '`
-            set -x
-            $KUBECTL $KUBECONFIG_ARG delete pods -n scale-test $pods
-            set +x
-        fi
-
-        if [[ $deleteRealPods != "" && $deleteRealPods -gt 0 && $numRealPods -gt 0 ]]; then
-            echo "deleting real pods. round $i/$deletePodsTimes..."
-            pods=`$KUBECTL $KUBECONFIG_ARG get pods -n scale-test -l is-real="true" | grep -v NAME | shuf -n $deleteRealPods | awk '{print $1}' | tr '\n' ' '`
-            set -x
-            $KUBECTL $KUBECONFIG_ARG delete pods -n scale-test $pods
-            set +x
-        fi
-
-        sleep 5s
-        wait_for_pods
-
-        if [[ $i == $deletePodsTimes ]]; then
-            break
-        fi
-        echo "sleeping $deletePodsInterval seconds after deleting pods (end of round $i/$deletePodsTimes)..."
-        sleep $deletePodsInterval
-    done
-
-    # make sure all Pods have shared labels
-    add_shared_labels
-fi
-
-
-if [[ $deleteLabels == true && $numSharedLabelsPerPod -gt 2 ]]; then
-    echo "deleting labels..."
-    for i in $(seq 1 $deleteLabelsTimes); do
-        echo "deleting labels. round $i/$deleteLabelsTimes..."
-        set -x
-        $KUBECTL $KUBECONFIG_ARG label pods -n scale-test --all shared-lab-00001- shared-lab-00002- shared-lab-00003-
-        set +x
-        echo "sleeping $deleteLabelsInterval seconds after deleting labels (round $i/$deleteLabelsTimes)..."
-        sleep $deleteLabelsInterval
+# if [[ $deleteNetpols == true ]]; then
+#     echo "deleting network policies..."
+#     for i in $(seq 1 $deleteNetpolsTimes); do
+#         echo "deleting network policies. round $i/$deleteNetpolsTimes..."
+#         set -x
+#         kubectl $KUBECONFIG_ARG delete netpol -n scale-test --all
+#         set +x
+#         echo "sleeping $deleteNetpolsInterval seconds after deleting network policies (round $i/$deleteNetpolsTimes)..."
+#         sleep $deleteNetpolsInterval
         
-        echo "re-adding labels. round $i/$deleteLabelsTimes..."
-        set -x
-        $KUBECTL $KUBECONFIG_ARG label pods -n scale-test --all shared-lab-00001=val shared-lab-00002=val shared-lab-00003=val
-        set +x
-        echo "sleeping $deleteLabelsInterval seconds after readding labels (end of round $i/$deleteLabelsTimes)..."
-        sleep $deleteLabelsInterval
-    done
-fi
+#         echo "re-adding network policies. round $i/$deleteNetpolsTimes..."
+#         set -x
+#         kubectl $KUBECONFIG_ARG apply -f generated/networkpolicies/unapplied
+#         kubectl $KUBECONFIG_ARG apply -f generated/networkpolicies/applied
+#         set +x
+#         echo "sleeping $deleteNetpolsInterval seconds after readding network policies (end of round $i/$deleteNetpolsTimes)..."
+#         sleep $deleteNetpolsInterval
+#     done
+# fi
+
+# if [[ ($deleteKwokPods != "" && $deleteKwokPods -gt 0) || ($deleteRealPods != "" && $deleteRealPods -gt 0) ]]; then
+#     for i in $(seq 1 $deletePodsTimes); do
+#         if [[ $deleteKwokPods != "" && $deleteKwokPods -gt 0 && $numKwokPods -gt 0 ]]; then
+#             echo "deleting kwok pods. round $i/$deletePodsTimes..."
+#             pods=$(retry_kubectl $KUBECONFIG_ARG get pods -n scale-test -l is-kwok="true" | grep -v NAME | shuf -n $deleteKwokPods | awk '{print $1}' | tr '\n' ' ')
+#             # pods=`kubectl $KUBECONFIG_ARG get pods -n scale-test -l is-kwok="true" | grep -v NAME | shuf -n $deleteKwokPods | awk '{print $1}' | tr '\n' ' '`
+#             set -x
+#             kubectl $KUBECONFIG_ARG delete pods -n scale-test $pods
+#             set +x
+#         fi
+
+#         if [[ $deleteRealPods != "" && $deleteRealPods -gt 0 && $numRealPods -gt 0 ]]; then
+#             echo "deleting real pods. round $i/$deletePodsTimes..."
+#             pods=$(retry_kubectl kubectl $KUBECONFIG_ARG get pods -n scale-test -l is-real="true" | grep -v NAME | shuf -n $deleteRealPods | awk '{print $1}' | tr '\n' ' ')
+#             set -x
+#             retry_kubectl "kubectl $KUBECONFIG_ARG delete pods -n scale-test $pods"
+#             set +x
+#         fi
+
+#         sleep 5s
+#         set -x
+#         retry_kubectl "kubectl $KUBECONFIG_ARG wait --for=condition=Ready pods -n scale-test --all --timeout=15m"
+#         set +x
+
+#         if [[ $i == $deletePodsTimes ]]; then
+#             break
+#         fi
+#         echo "sleeping $deletePodsInterval seconds after deleting pods (end of round $i/$deletePodsTimes)..."
+#         sleep $deletePodsInterval
+#     done
+# fi
 
 echo
 echo "FINISHED at $(date -u). Had started at $startDate."
+echo "Elapsed Time: $(($end-$start)) seconds"
 echo

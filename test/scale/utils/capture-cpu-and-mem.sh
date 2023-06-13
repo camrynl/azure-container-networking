@@ -3,13 +3,13 @@
 #####################################################################################
 APPEND_TO_EXISTING_FILES=true
 
-FOLDER="captures"
+FOLDER="100k/disabled/16000podtest2"
 RUNNING_PODS_FILE=$FOLDER/cpu-and-mem-running-pods.out
-POD_MEM_CSV=$FOLDER/cpu-and-mem-pod-results.csv
-NODE_MEM_CSV=$FOLDER/cpu-and-mem-node-results.csv
+POD_MEM_CSV=$FOLDER/cpu-and-mem-pod-results-16000pod.csv
+NODE_MEM_CSV=$FOLDER/cpu-and-mem-node-results-16000pod.csv
 
 # kubectl top seems to refresh every minute
-SLEEP_BETWEEN_CAPTURES=65
+SLEEP_BETWEEN_CAPTURES=10
 
 ## RUN
 mkdir -p $FOLDER
@@ -27,7 +27,7 @@ fi
 while true; do
     currentTime=`date -u`
     echo "running k top pod"
-    lines=`kubectl top pod -A | grep -v NAME | grep -v kwok | awk '{$1=$1;print}' | tr ' ' ','`
+    lines=`kubectl top pod -A | grep -v NAME | grep cilium | awk '{$1=$1;print}' | tr ' ' ','`
     for line in $lines; do
         echo "$currentTime,$line" >> $POD_MEM_CSV
     done

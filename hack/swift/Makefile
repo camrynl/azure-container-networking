@@ -160,7 +160,7 @@ swift-no-kube-proxy-up: rg-up swift-net-up ## Bring up a SWIFT BYO CNI cluster w
 		--pod-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/podnet \
 		--no-ssh-key \
 		--os-sku $(OS_SKU) \
-		--kube-proxy-config ./kube-proxy.json \
+		--kube-proxy-config /root/tmpsrc/kube-proxy.json \
 		--yes
 	@$(MAKE) set-kubeconf
 
@@ -175,6 +175,7 @@ swift-cilium-up: rg-up swift-net-up ## Bring up a SWIFT Cilium cluster
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
 		--pod-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/podnet \
 		--no-ssh-key \
+		--uptime-sla \
 		--yes
 	@$(MAKE) set-kubeconf
 
