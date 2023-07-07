@@ -3,7 +3,7 @@
 #####################################################################################
 APPEND_TO_EXISTING_FILES=true
 
-FOLDER="100k/disabled/16000podtest2"
+FOLDER="200k-cpu-and-mem-2/disabled/16000podtest"
 RUNNING_PODS_FILE=$FOLDER/cpu-and-mem-running-pods.out
 POD_MEM_CSV=$FOLDER/cpu-and-mem-pod-results-16000pod.csv
 NODE_MEM_CSV=$FOLDER/cpu-and-mem-node-results-16000pod.csv
