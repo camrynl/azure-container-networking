@@ -28,6 +28,7 @@ int linklocal_to_gua(struct __sk_buff *skb)
     {
 
         bpf_printk("Source address is a link local address. Setting new addr to global unicast.\n");
+        bpf_printk("Source address is %pI6.\n", &src_addr);
 
         // Store the new source address in the packet
         int ret = bpf_skb_store_bytes(skb, ETH_HLEN + offsetof(struct ipv6hdr, saddr),
@@ -37,6 +38,7 @@ int linklocal_to_gua(struct __sk_buff *skb)
             bpf_printk("bpf_skb_store_bytes failed with error code %d.\n", ret);
             return TC_ACT_SHOT;
         }
+        bpf_printk("New source address: \n");
         bpf_skb_load_bytes(skb, ETH_HLEN + offsetof(struct ipv6hdr, saddr), &new_src_addr, sizeof(new_src_addr));
         for (int i = 0; i < sizeof(new_src_addr.s6_addr); i++)
         {
