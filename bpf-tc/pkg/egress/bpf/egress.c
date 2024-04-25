@@ -9,12 +9,29 @@
 #include <linux/if_ether.h>
 #include <string.h>
 #include <stdint.h>
+#include <stdbool.h>
+
+static __always_inline bool compare_ipv6_addr(const struct in6_addr *addr1, const struct in6_addr *addr2)
+{
+#pragma unroll
+    for (int i = 0; i < sizeof(struct in6_addr); i++)
+    {
+        if (addr1->s6_addr[i] != addr2->s6_addr[i])
+        {
+            return false;
+        }
+    }
+    return true;
+}
 
 SEC("classifier")
 int gua_to_linklocal(struct __sk_buff *skb)
 {
     // Define the link-local address fe80::1234:5678:9abc
     const struct in6_addr LINKLOCAL_ADDR = {{{0xfe, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc}}};
+
+    // Define the global unicast address 2603:1062:0000:0001:fe80:1234:5678:9abc
+    const struct in6_addr GLOBAL_UNICAST_ADDR = {{{0x26, 0x03, 0x10, 0x62, 0x00, 0x00, 0x00, 0x01, 0xfe, 0x80, 0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc}}};
 
     struct in6_addr dst_addr;
     struct ipv6hdr ipv6_hdr;
@@ -38,9 +55,7 @@ int gua_to_linklocal(struct __sk_buff *skb)
         return TC_ACT_UNSPEC;
 
     // Check the destination address to determine if it is a global unicast address
-    // The first 4 bytes of the global unicast address are 2603:1062, we must compare with bytes
-    // since bpf does not support comparing the ipv6 address directly with functions such as memcmp
-    if (dst_addr.s6_addr[0] == 0x26 && dst_addr.s6_addr[1] == 0x03 && dst_addr.s6_addr[2] == 0x10 && dst_addr.s6_addr[3] == 0x62)
+    if (compare_ipv6_addr(&dst_addr, &GLOBAL_UNICAST_ADDR))
     {
 
         bpf_printk("Destination address is a global unicast address. Setting new addr to link local.\n");
