@@ -15,7 +15,7 @@ func main() {
 		log.Printf("Removing memlock:", err)
 	}
 
-	ifname := "eth0" // Change this to an interface on your machine.
+	ifname := "eth0"
 	iface, err := net.InterfaceByName(ifname)
 	if err != nil {
 		log.Printf("Getting interface %s: %s", ifname, err)

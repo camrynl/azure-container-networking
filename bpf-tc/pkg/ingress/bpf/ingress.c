@@ -12,9 +12,10 @@
 SEC("classifier")
 int linklocal_to_gua(struct __sk_buff *skb)
 {
+    // Define the global unicast address 2603:1062:0000:0001:fe80:1234:5678:9abc
     const struct in6_addr GLOBAL_UNICAST_ADDR = {{{0x26, 0x03, 0x10, 0x62, 0x00, 0x00, 0x00, 0x01, 0xfe, 0x80, 0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc}}};
     struct in6_addr src_addr;
-    struct in6_addr new_src_addr;
+    struct ipv6hdr ipv6_hdr;
 
     int ret = bpf_skb_load_bytes(skb, ETH_HLEN + offsetof(struct ipv6hdr, saddr), &src_addr, sizeof(src_addr));
     if (ret != 0)
@@ -23,7 +24,20 @@ int linklocal_to_gua(struct __sk_buff *skb)
         return TC_ACT_SHOT;
     }
 
+    int ret_hdr = bpf_skb_load_bytes(skb, ETH_HLEN, &ipv6_hdr, sizeof(ipv6_hdr));
+    if (ret_hdr != 0)
+    {
+        bpf_printk("bpf_skb_load_bytes failed with error code %d.\n", ret_hdr);
+        return TC_ACT_SHOT;
+    }
+
+    // Check if the packet is TCP
+    if (ipv6_hdr.nexthdr != IPPROTO_TCP)
+        return TC_ACT_UNSPEC;
+
     // Check the bytes of the source address to determine if it is Link Local
+    // The first 4 bytes of the link local address are fe80:1234, we must compare with bytes since bpf
+    // does not support comparing the ipv6 address directly with functions such as memcmp
     if (src_addr.s6_addr[0] == 0xfe && src_addr.s6_addr[1] == 0x80 && src_addr.s6_addr[10] == 0x12 && src_addr.s6_addr[11] == 0x34)
     {
 
@@ -37,12 +51,6 @@ int linklocal_to_gua(struct __sk_buff *skb)
         {
             bpf_printk("bpf_skb_store_bytes failed with error code %d.\n", ret);
             return TC_ACT_SHOT;
-        }
-        bpf_printk("New source address: \n");
-        bpf_skb_load_bytes(skb, ETH_HLEN + offsetof(struct ipv6hdr, saddr), &new_src_addr, sizeof(new_src_addr));
-        for (int i = 0; i < sizeof(new_src_addr.s6_addr); i++)
-        {
-            bpf_printk("%02x", new_src_addr.s6_addr[i]);
         }
     }
 
