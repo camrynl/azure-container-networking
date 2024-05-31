@@ -24,6 +24,24 @@ RUN apt-get update && apt-get install -y llvm clang linux-libc-dev linux-headers
     && rm -rf /var/lib/apt/lists/*
 ENV C_INCLUDE_PATH=/usr/include/bpf
 
+FROM mcr.microsoft.com/cbl-mariner/distroless/minimal:2.0 AS final-arm64
+COPY --from=builder /go/bin/ipv6-hp-bpf /ipv6-hp-bpf
+COPY --from=builder /usr/sbin/nft /usr/sbin/nft
+COPY --from=builder /sbin/ip /sbin/ip
+COPY --from=builder /lib/aarch64-linux-gnu/libnftables.so.1 /lib/aarch64-linux-gnu/
+COPY --from=builder /lib/aarch64-linux-gnu/libedit.so.2 /lib/aarch64-linux-gnu/
+COPY --from=builder /lib/aarch64-linux-gnu/libc.so.6 /lib/aarch64-linux-gnu/
+COPY --from=builder /lib/aarch64-linux-gnu/libmnl.so.0 /lib/aarch64-linux-gnu/
+COPY --from=builder /lib/aarch64-linux-gnu/libnftnl.so.11 /lib/aarch64-linux-gnu/
+COPY --from=builder /lib/aarch64-linux-gnu/libxtables.so.12 /lib/aarch64-linux-gnu/
+COPY --from=builder /lib/aarch64-linux-gnu/libjansson.so.4 /lib/aarch64-linux-gnu/
+COPY --from=builder /lib/aarch64-linux-gnu/libgmp.so.10 /lib/aarch64-linux-gnu/
+COPY --from=builder /lib/aarch64-linux-gnu/libtinfo.so.6 /lib/aarch64-linux-gnu/
+COPY --from=builder /lib/aarch64-linux-gnu/libbsd.so.0 /lib/aarch64-linux-gnu/
+COPY --from=builder /lib/aarch64-linux-gnu/libmd.so.0 /lib/aarch64-linux-gnu/
+COPY --from=builder /lib/aarch64-linux-gnu/ld-linux-aarch64.so.1 /lib/aarch64-linux-gnu/
+CMD ["/ipv6-hp-bpf"]
+
 FROM mcr.microsoft.com/cbl-mariner/distroless/minimal:2.0 AS final-amd64
 COPY --from=builder /go/bin/ipv6-hp-bpf /ipv6-hp-bpf
 COPY --from=builder /usr/sbin/nft /usr/sbin/nft
@@ -40,10 +58,4 @@ COPY --from=builder /lib/x86_64-linux-gnu/libtinfo.so.6 /lib/x86_64-linux-gnu/
 COPY --from=builder /lib/x86_64-linux-gnu/libbsd.so.0 /lib/x86_64-linux-gnu/
 COPY --from=builder /lib64/ld-linux-x86-64.so.2 /lib64/
 COPY --from=builder /lib/x86_64-linux-gnu/libmd.so.0 /lib/x86_64-linux-gnu/
-CMD ["/ipv6-hp-bpf"]
-
-FROM mcr.microsoft.com/cbl-mariner/distroless/minimal:2.0 AS final-arm64
-COPY --from=builder /go/bin/ipv6-hp-bpf /ipv6-hp-bpf
-COPY --from=builder /usr/sbin/nft /usr/sbin/nft
-COPY --from=builder /sbin/ip /sbin/ip
 CMD ["/ipv6-hp-bpf"]
