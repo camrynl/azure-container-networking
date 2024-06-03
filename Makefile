@@ -392,9 +392,9 @@ ipv6-hp-bpf-image-name-and-tag: # util target to print the ipv6-hp-bpf image nam
 
 ipv6-hp-bpf-image: ## build ipv6-hp-bpf container image.
 	$(MAKE) container \
-		DOCKERFILE=bpf-prog/ipv6-hp-bpf/$(OS).Dockerfile \
+		DOCKERFILE=bpf-prog/ipv6-hp-bpf/$(OS)-$(ARCH).Dockerfile \
 		IMAGE=$(IPV6_HP_BPF_IMAGE) \
-		EXTRA_BUILD_ARGS='--build-arg OS=$(OS) --build-arg ARCH=$(ARCH) --build-arg OS_VERSION=$(OS_VERSION) --build-arg DEBUG=$(DEBUG) --target=final-$(ARCH)'\
+		EXTRA_BUILD_ARGS='--build-arg OS=$(OS) --build-arg ARCH=$(ARCH) --build-arg OS_VERSION=$(OS_VERSION) --build-arg DEBUG=$(DEBUG)'\
 		PLATFORM=$(PLATFORM) \
 		TAG=$(IPV6_HP_BPF_IMAGE_PLATFORM_TAG) \
 		OS=$(OS) \
