@@ -359,6 +359,27 @@ stages:
       vmSize: ${VM_SIZE_CILIUM}
       dualstackVersion: ${CILIUM_DUALSTACK_VERSION}
       cni: "cilium_dualstack"
+  
+  - template: cilium/cilium-overlay-load-test-template.yaml
+    parameters:
+      name: cilium_ds_arm
+      clusterType: dualstack-byocni-nokubeproxy-up
+      clusterName: "cil-ds-arm"
+      nodeCount: ${NODE_COUNT_CILIUM}
+      vmSize: Standard_D8ps_v5
+      arch: arm64
+      cni: "cilium_dualstack"
+
+  - template: cilium/cilium-overlay-load-test-template.yaml
+    parameters:
+      name: cilium_ds_mariner
+      clusterType: dualstack-byocni-nokubeproxy-up
+      clusterName: "cil-ds-mar"
+      nodeCount: ${NODE_COUNT_CILIUM}
+      vmSize: ${VM_SIZE_CILIUM}
+      arch: amd64
+      osSKU: AzureLinux
+      cni: "cilium_dualstack"
 
   - stage: delete_resources
     displayName: "Delete Resources"
@@ -372,6 +393,8 @@ stages:
       - cilium_overlay_arm
       - cilium_overlay_rdma
       - cilium_overlay_ds
+      - cilium_ds_arm
+      - cilium_ds_mariner
       - win22_cniv1_HNS
       - linux_cniv1
       - linux_podsubnet
@@ -410,6 +433,12 @@ stages:
             cilium_overlay_ds:
               name: cilium_overlay_ds
               clusterName: "cil-ds-ov"
+            cilium_ds_arm:
+              name: cilium_ds_arm
+              clusterName: "cil-ds-arm"
+            cilium_ds_mariner:
+              name: cilium_ds_mariner
+              clusterName: "cil-ds-mar"
             win22-cniv1:
               name: win22-cniv1
               clusterName: "win22-cniv1"
