@@ -368,6 +368,7 @@ stages:
       nodeCount: ${NODE_COUNT_CILIUM}
       vmSize: Standard_D8ps_v5
       arch: arm64
+      dualstackVersion: ${CILIUM_DUALSTACK_VERSION}
       cni: "cilium_dualstack"
 
   - template: cilium/cilium-overlay-load-test-template.yaml
@@ -379,6 +380,7 @@ stages:
       vmSize: ${VM_SIZE_CILIUM}
       arch: amd64
       osSKU: AzureLinux
+      dualstackVersion: ${CILIUM_DUALSTACK_VERSION}
       cni: "cilium_dualstack"
 
   - stage: delete_resources
