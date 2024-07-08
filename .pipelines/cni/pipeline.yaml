@@ -382,6 +382,17 @@ stages:
       osSKU: AzureLinux
       dualstackVersion: ${CILIUM_DUALSTACK_VERSION}
       cni: "cilium_dualstack"
+  
+  - template: cilium/cilium-overlay-load-test-template.yaml
+    parameters:
+      name: cilium_ds_rdma
+      clusterType: dualstack-byocni-nokubeproxy-up
+      clusterName: "cil-ds-rdma"
+      nodeCount: ${NODE_COUNT_CILIUM}
+      vmSize: Standard_HC44-16rs
+      arch: amd64
+      dualstackVersion: ${CILIUM_DUALSTACK_VERSION}
+      cni: "cilium_dualstack"
 
   - stage: delete_resources
     displayName: "Delete Resources"
@@ -397,6 +408,7 @@ stages:
       - cilium_overlay_ds
       - cilium_ds_arm
       - cilium_ds_mariner
+      - cilium_ds_rdma
       - win22_cniv1_HNS
       - linux_cniv1
       - linux_podsubnet
@@ -441,6 +453,9 @@ stages:
             cilium_ds_mariner:
               name: cilium_ds_mariner
               clusterName: "cil-ds-mar"
+            cilium_ds_rdma:
+              name: cilium_ds_rdma
+              clusterName: "cil-ds-rdma"
             win22-cniv1:
               name: win22-cniv1
               clusterName: "win22-cniv1"
