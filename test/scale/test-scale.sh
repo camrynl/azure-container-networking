@@ -35,13 +35,15 @@ REQUIRED PARAMETERS:
     --num-shared-labels-per-pod           create labels shared between all Pods. Creates numSharedLabelsPerPod distinct labels. Must be >= 3 if numNetworkPolicies > 0 because of the way we generate network policies
 
 OPTIONAL PARAMETERS:
-    --kubeconfig=<path>                   path to kubeconfig file
-    --kubectl-binary=<path>               path to kubectl binary. Default is kubectl
-    --restart-npm                         make sure NPM exists and restart it before running scale test
-    --debug-exit-after-print-counts       skip scale test. Just print out counts of things to be created and counts of IPSets/ACLs that NPM would create
-    --num-real-services                   cluster ip service for the real deployments scheduled. Each svc will point to the respective deployment(having <num-real-replicas> pods) Default is 0
-    --debug-exit-after-generation         skip scale test. Exit after generating templates
-    --real-pod-type                       select deployment type. Options are agnhost or nginx. Default is agnhost
+    --kubeconfig=<path>                         path to kubeconfig file
+    --kubectl-binary=<path>                     path to kubectl binary. Default is kubectl
+    --restart-npm                               make sure NPM exists and restart it before running scale test
+    --debug-exit-after-print-counts             skip scale test. Just print out counts of things to be created and counts of IPSets/ACLs that NPM would create
+    --num-real-services                         cluster ip service for the real deployments scheduled. Each svc will point to the respective deployment(having <num-real-replicas> pods) Default is 0
+    --debug-exit-after-generation               skip scale test. Exit after generating templates
+    --real-pod-type                             select deployment type. Options are agnhost or nginx. Default is agnhost
+    --num-cilium-network-policies               Cilium NetPols applied to every Pod
+    --num-unapplied-cilium-network-policies     Cilium NetPols that do not target any Pod
 
 OPTIONAL PARAMETERS TO TEST DELETION:
     --sleep-after-creation=<int>          seconds to sleep after creating everything. Default is 0
@@ -55,6 +57,9 @@ OPTIONAL PARAMETERS TO TEST DELETION:
     --delete-netpols                      delete and readd all NetworkPolicies
     --delete-netpols-interval=<int>       seconds to wait after deleting or readding. Default is 60
     --delete-netpols-times=<int>          number of times to delete and readd. Default is 1
+    --delete-cilnetpols                   delete and readd all CiliumNetworkPolicies
+    --delete-cilnetpols-interval=<int>    seconds to wait after deleting or readding. Default is 60
+    --delete-cilnetpols-times=<int>       number of times to delete and readd. Default is 1
 EOF
 }
 
@@ -94,6 +99,12 @@ while [[ $# -gt 0 ]]; do
             ;;
         --num-unapplied-network-policies=*)
             numUnappliedNetworkPolicies="${1#*=}"
+            ;;
+        --num-cilium-network-policies=*)
+            numCiliumNetworkPolicies="${1#*=}"
+            ;;
+        --num-unapplied-cilium-network-policies=*)
+            numUnappliedCiliumNetworkPolicies="${1#*=}"
             ;;
         --num-unique-labels-per-pod=*)
             numUniqueLabelsPerPod="${1#*=}"
@@ -163,6 +174,15 @@ while [[ $# -gt 0 ]]; do
         --delete-netpols-times=*)
             deleteNetpolsTimes="${1#*=}"
             ;;
+        --delete-cilnetpols)
+            deleteCilNetpols=true
+            ;;
+        --delete-cilnetpols-interval=*)
+            deleteCilNetpolsInterval="${1#*=}"
+            ;;
+        --delete-cilnetpols-times=*)
+            deleteCilNetpolsTimes="${1#*=}"
+            ;;
         *)
             echo "ERROR: unknown parameter $1. Make sure you're using '--key=value' for parameters with values"
             exit 1
@@ -181,6 +201,10 @@ if [[ $numNetworkPolicies -gt 0 && $numSharedLabelsPerPod -lt 3 ]]; then
     exit 1
 fi
 
+if [[ -z $numCiliumNetworkPolicies ]]; then numCiliumNetworkPolicies=0; fi
+
+if [[ -z $numUnappliedCiliumNetworkPolicies ]]; then numUnappliedCiliumNetworkPolicies=0; fi
+
 if [[ -z $KUBECTL ]]; then
     KUBECTL="kubectl"
 fi
@@ -194,6 +218,8 @@ if [[ -z $deleteLabelsInterval ]]; then deleteLabelsInterval=60; fi
 if [[ -z $deleteLabelsTimes ]]; then deleteLabelsTimes=1; fi
 if [[ -z $deleteNetpolsInterval ]]; then deleteNetpolsInterval=60; fi
 if [[ -z $deleteNetpolsTimes ]]; then deleteNetpolsTimes=1; fi
+if [[ -z $deleteCilNetpolsInterval ]]; then deleteCilNetpolsInterval=60; fi
+if [[ -z $deleteCilNetpolsTimes ]]; then deleteCilNetpolsTimes=1; fi
 
 ## CALCULATIONS
 numKwokPods=$(( $numKwokDeployments * $numKwokReplicas ))
@@ -243,6 +269,8 @@ numUniqueLabelsPerPod=$numUniqueLabelsPerPod
 numUniqueLabelsPerDeployment=$numUniqueLabelsPerDeployment
 numNetworkPolicies=$numNetworkPolicies
 numUnappliedNetworkPolicies=$numUnappliedNetworkPolicies
+numCiliumNetworkPolicies=$numCiliumNetworkPolicies
+numUnappliedCiliumNetworkPolicies=$numUnappliedCiliumNetworkPolicies
 
 Delete arguments (optional):
 deleteKwokPods=$deleteKwokPods
@@ -255,6 +283,9 @@ deleteLabelsTimes=$deleteLabelsTimes
 deleteNetpols=$deleteNetpols
 deleteNetpolsInterval=$deleteNetpolsInterval
 deleteNetpolsTimes=$deleteNetpolsTimes
+deleteCilNetpols=$deleteCilNetpols
+deleteCilNetpolsInterval=$deleteCilNetpolsInterval
+deleteCilNetpolsTimes=$deleteCilNetpolsTimes
 
 The following will be created:
 kwok Nodes: $numKwokNodes
@@ -330,6 +361,8 @@ mkdir -p generated/kwok-nodes
 mkdir -p generated/deployments/real-$realPodType/
 mkdir -p generated/deployments/kwok/
 mkdir -p generated/services/real/
+mkdir -p generated/ciliumnetworkpolicies/applied
+mkdir -p generated/ciliumnetworkpolicies/unapplied
 
 generateDeployments() {
     local numDeployments=$1
@@ -408,6 +441,31 @@ done
 for j in $(seq 1 $numUnappliedNetworkPolicies ); do
     i=`printf "%05d" $j`
     sed "s/TEMP_NAME/unapplied-policy-$i/g" templates/unapplied-networkpolicy.yaml > generated/networkpolicies/unapplied/unapplied-policy-$i.yaml
+done
+
+for j in $(seq 1 $numCiliumNetworkPolicies); do
+    valNum=$j
+    i=`printf "%05d" $j`
+    fileName=generated/ciliumnetworkpolicies/applied/policy-$i.yaml
+    sed "s/TEMP_NAME/policy-$i/g" templates/ciliumnetworkpolicy.yaml > $fileName
+    if [[ $valNum -ge $(( numSharedLabelsPerPod - 2 )) ]]; then
+        valNum=$(( $numSharedLabelsPerPod - 2 ))
+    fi
+    k=`printf "%05d" $valNum`
+    sed -i "s/TEMP_LABEL_NAME/shared-lab-$k/g" $fileName
+
+    ingressNum=$(( $valNum + 1 ))
+    k=`printf "%05d" $ingressNum`
+    sed -i "s/TEMP_INGRESS_NAME/shared-lab-$k/g" $fileName
+
+    egressNum=$(( $valNum + 2 ))
+    k=`printf "%05d" $ingressNum`
+    sed -i "s/TEMP_EGRESS_NAME/shared-lab-$k/g" $fileName
+done
+
+for j in $(seq 1 $numUnappliedCiliumNetworkPolicies ); do
+    i=`printf "%05d" $j`
+    sed "s/TEMP_NAME/unapplied-policy-$i/g" templates/unapplied-ciliumnetworkpolicy.yaml > generated/ciliumnetworkpolicies/unapplied/unapplied-policy-$i.yaml
 done
 
 for i in $(seq -f "%05g" 1 $numKwokNodes); do
@@ -540,6 +598,16 @@ if [[ $numNetworkPolicies -gt 0 ]]; then
     $KUBECTL $KUBECONFIG_ARG apply -f generated/networkpolicies/applied
     set +x
 fi
+if [[ $numUnappliedCiliumNetworkPolicies -gt 0 ]]; then
+    set -x
+    $KUBECTL $KUBECONFIG_ARG apply -f generated/ciliumnetworkpolicies/unapplied
+    set +x
+fi
+if [[ $numCiliumNetworkPolicies -gt 0 ]]; then
+    set -x
+    $KUBECTL $KUBECONFIG_ARG apply -f generated/ciliumnetworkpolicies/applied
+    set +x
+fi
 
 echo
 echo "done scaling at $(date -u). Had started at $startDate."
@@ -573,6 +641,30 @@ if [[ $deleteNetpols == true ]]; then
         set +x
         echo "sleeping $deleteNetpolsInterval seconds after readding network policies (end of round $i/$deleteNetpolsTimes)..."
         sleep $deleteNetpolsInterval
+    done
+fi
+
+if [[ $deleteCilNetpols == true ]]; then
+    echo "deleting cilium network policies..."
+    for i in $(seq 1 $deleteCilNetpolsTimes); do
+        echo "deleting cilium network policies. round $i/$deleteCilNetpolsTimes..."
+        set -x
+        $KUBECTL $KUBECONFIG_ARG delete netpol -n scale-test --all
+        set +x
+        echo "sleeping $deleteCilNetpolsInterval seconds after deleting cilium network policies (round $i/$deleteCilNetpolsTimes)..."
+        sleep $deleteCilNetpolsInterval
+
+        echo "re-adding network policies. round $i/$deleteCilNetpolsTimes..."
+        set -x
+        if [[ $numUnappliedCiliumNetworkPolicies -gt 0 ]]; then
+            $KUBECTL $KUBECONFIG_ARG apply -f generated/ciliumnetworkpolicies/unapplied
+        fi
+        if [[ $numCiliumNetworkPolicies -gt 0 ]]; then
+            $KUBECTL $KUBECONFIG_ARG apply -f generated/ciliumnetworkpolicies/applied
+        fi
+        set +x
+        echo "sleeping $deleteCilNetpolsInterval seconds after readding cilium network policies (end of round $i/$deleteCilNetpolsTimes)..."
+        sleep $deleteCilNetpolsInterval
     done
 fi
 
