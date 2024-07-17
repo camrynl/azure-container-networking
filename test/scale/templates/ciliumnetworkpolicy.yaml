@@ -3,15 +3,15 @@ apiVersion: cilium.io/v2
 metadata:
   name: TEMP_NAME
   namespace: scale-test
-spec:
-  endpointSelector:
-    matchLabels:
-      TEMP_LABEL_NAME: val
-  ingress:
-    fromEndpoints:
+specs:
+  - endpointSelector:
       matchLabels:
-        TEMP_INGRESS_NAME: val
-  egress:
-    toEndpoints:
-      matchLabels:
-        TEMP_EGRESS_NAME: val
+        TEMP_LABEL_NAME: val
+    ingress:
+      - fromEndpoints:
+        - matchLabels:
+            TEMP_INGRESS_NAME: val
+    egress:
+      - toEndpoints:
+        - matchLabels:
+            TEMP_EGRESS_NAME: val
