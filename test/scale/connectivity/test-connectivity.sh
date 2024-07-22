@@ -114,11 +114,11 @@ EOF
 connectToGoogle() {
     local from=$1
     log "checking connectivity from $from to www.google.com"
-    string RETVAL="$(k exec -n scale-test "$from" --  curl -sL www.google.com -o /dev/null)"
+    RETVAL="$(k exec -n scale-test "$from" --  curl -sL www.google.com -o /dev/null)"
     if [ "$RETVAL" = "200" ]; then
-        return true
+        return 0
     else
-        return false
+        return 1
     fi
 }
 
@@ -127,9 +127,9 @@ connectToBing() {
     log "checking connectivity from $from to www.bing.com"
     string RETVAL="$(k exec -n scale-test "$from" --  curl -sL www.google.com -o /dev/null)"
     if [ "$RETVAL" = "200" ]; then
-        return false
+        return 1
     else
-        return true
+        return 0
     fi
 }
 
@@ -190,12 +190,12 @@ verifyNetPol() {
         scalePodIP=${scalePodIPs[$i]}
 
         connectToGoogle $scalePod || {
-            log: "WARNING: expected scale Pod $scalePod to be able to connect to Google after adding CiliumNetworkPolicy"
+            log "WARNING: expected scale Pod $scalePod to be able to connect to Google after adding CiliumNetworkPolicy"
             return 9
         }
 
         connectToBing $scalePod || {
-            log: "WARNING: expected scale Pod $scalePod to not be able to connect to Bing after adding CiliumNetworkPolicy"
+            log "WARNING: expected scale Pod $scalePod to not be able to connect to Bing after adding CiliumNetworkPolicy"
             return 9
         }
     done

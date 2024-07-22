@@ -12,11 +12,11 @@ do
         echo "netperf pod : $netperf_pod"
         echo "pod_count: $pod_count"
 
-        if [ $pod_count -gt 1 ]; then 
+        if [ $pod_count -gt 1 ]; then
             target_pod=$(echo $netperf_pod | cut -d" " -f 1)
             target_pod_ip=$(kubectl get pod "$target_pod" -o jsonpath='{.status.podIP}')
             same_vm_pod=$(echo $netperf_pod | cut -d" " -f 2)
-            kubectl exec -it $target_pod -- netserver
+            kubectl exec $target_pod -- netserver
             node_found=$((node_found + 1))
             echo "Number of nodes found with netperf pod: $node_found"
         else
@@ -36,8 +36,8 @@ echo "different vm pod: $diff_vm_pod"
 iteration=10
 while [ $iteration -ge 0 ]
 do
-    echo "============ Iteration $iteration ===============" 
-    kubectl exec -it $same_vm_pod -- netperf -H $target_pod_ip -l 30 -t TCP_STREAM >> "test3_netperf/same_vm_iteration_$iteration.log"
+    echo "============ Iteration $iteration ==============="
+    kubectl exec $same_vm_pod -- netperf -H $target_pod_ip -l 30 -t TCP_STREAM >> "test3_netperf/same_vm_iteration_$iteration.log"
     echo "==============================="
     sleep 5s
     iteration=$((iteration-1))
@@ -47,8 +47,8 @@ done
 iteration=10
 while [ $iteration -ge 0 ]
 do
-    echo "============ Iteration $iteration ===============" 
-    kubectl exec -it $diff_vm_pod -- netperf -H $target_pod_ip -l 30 -t TCP_STREAM >> "test3_netperf/diff_vm_iteration_$iteration.log"
+    echo "============ Iteration $iteration ==============="
+    kubectl exec $diff_vm_pod -- netperf -H $target_pod_ip -l 30 -t TCP_STREAM >> "test3_netperf/diff_vm_iteration_$iteration.log"
     echo "==============================="
     sleep 5s
     iteration=$((iteration-1))

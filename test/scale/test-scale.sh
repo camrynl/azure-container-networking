@@ -389,6 +389,19 @@ generateDeployments() {
                 depLabels="$depLabels\n        $labelPrefix-$j: val"
             done
             perl -pi -e "s/OTHER_LABELS_8_SPACES/$depLabels/g" $outFile
+
+            for j in $(seq 1 $numCiliumNetworkPolicies); do
+                valNum=$j
+                a=`printf "%05d" $j`
+                fileName=generated/ciliumnetworkpolicies/applied/policy-$a.yaml
+                sed "s/TEMP_NAME/policy-$a/g" templates/ciliumnetworkpolicy.yaml > $fileName
+                if [[ $valNum -ge $(( numSharedLabelsPerPod - 2 )) ]]; then
+                    valNum=$(( $numSharedLabelsPerPod - 2 ))
+                fi
+                k=`printf "%05d" $valNum`
+                sed -i "s/TEMP_LABEL_NAME/$depLabels/g" $fileName
+            done
+
         else
             sed -i "s/OTHER_LABELS_6_SPACES//g" $outFile
             sed -i "s/OTHER_LABELS_8_SPACES//g" $outFile
@@ -442,18 +455,18 @@ for j in $(seq 1 $numUnappliedNetworkPolicies ); do
     sed "s/TEMP_NAME/unapplied-policy-$i/g" templates/unapplied-networkpolicy.yaml > generated/networkpolicies/unapplied/unapplied-policy-$i.yaml
 done
 
-for j in $(seq 1 $numCiliumNetworkPolicies); do
-    valNum=$j
-    i=`printf "%05d" $j`
-    fileName=generated/ciliumnetworkpolicies/applied/policy-$i.yaml
-    sed "s/TEMP_NAME/policy-$i/g" templates/ciliumnetworkpolicy.yaml > $fileName
-    # j=1, 1 ! >= (5-2)
-    if [[ $valNum -ge $(( numSharedLabelsPerPod - 2 )) ]]; then
-        valNum=$(( $numSharedLabelsPerPod - 2 ))
-    fi
-    k=`printf "%05d" $valNum`
-    sed -i "s/TEMP_LABEL_NAME/shared-lab-$k/g" $fileName
-done
+# for j in $(seq 1 $numCiliumNetworkPolicies); do
+#     valNum=$j
+#     i=`printf "%05d" $j`
+#     fileName=generated/ciliumnetworkpolicies/applied/policy-$i.yaml
+#     sed "s/TEMP_NAME/policy-$i/g" templates/ciliumnetworkpolicy.yaml > $fileName
+#     # j=1, 1 ! >= (5-2)
+#     if [[ $valNum -ge $(( numSharedLabelsPerPod - 2 )) ]]; then
+#         valNum=$(( $numSharedLabelsPerPod - 2 ))
+#     fi
+#     k=`printf "%05d" $valNum`
+#     sed -i "s/TEMP_LABEL_NAME/shared-lab-$k/g" $fileName
+# done
 
 for j in $(seq 1 $numUnappliedCiliumNetworkPolicies ); do
     i=`printf "%05d" $j`
