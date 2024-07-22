@@ -3,15 +3,22 @@ apiVersion: cilium.io/v2
 metadata:
   name: TEMP_NAME
   namespace: scale-test
-specs:
-  - endpointSelector:
-      matchLabels:
-        TEMP_LABEL_NAME: val
-    ingress:
-      - fromEndpoints:
-        - matchLabels:
-            TEMP_INGRESS_NAME: val
-    egress:
-      - toEndpoints:
-        - matchLabels:
-            TEMP_EGRESS_NAME: val
+spec:
+  endpointSelector:
+    matchLabels:
+      app: scale-test
+      TEMP_LABEL_NAME: val
+  egress:
+    - toEndpoints:
+      - matchLabels:
+          "k8s:io.kubernetes.pod.namespace": kube-system
+          "k8s:k8s-app": kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: ANY
+          rules:
+            dns:
+              - matchPattern: "*"
+    - toFQDNs:
+      - matchName: "www.google.com"

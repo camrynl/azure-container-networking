@@ -369,7 +369,6 @@ generateDeployments() {
     local numReplicas=$2
     local depKind=$3
 
-
     for i in $(seq -f "%05g" 1 $numDeployments); do
         name="$depKind-dep-$i"
         labelPrefix="$depKind-dep-lab-$i"
@@ -448,19 +447,12 @@ for j in $(seq 1 $numCiliumNetworkPolicies); do
     i=`printf "%05d" $j`
     fileName=generated/ciliumnetworkpolicies/applied/policy-$i.yaml
     sed "s/TEMP_NAME/policy-$i/g" templates/ciliumnetworkpolicy.yaml > $fileName
+    # j=1, 1 ! >= (5-2)
     if [[ $valNum -ge $(( numSharedLabelsPerPod - 2 )) ]]; then
         valNum=$(( $numSharedLabelsPerPod - 2 ))
     fi
     k=`printf "%05d" $valNum`
     sed -i "s/TEMP_LABEL_NAME/shared-lab-$k/g" $fileName
-
-    ingressNum=$(( $valNum + 1 ))
-    k=`printf "%05d" $ingressNum`
-    sed -i "s/TEMP_INGRESS_NAME/shared-lab-$k/g" $fileName
-
-    egressNum=$(( $valNum + 2 ))
-    k=`printf "%05d" $ingressNum`
-    sed -i "s/TEMP_EGRESS_NAME/shared-lab-$k/g" $fileName
 done
 
 for j in $(seq 1 $numUnappliedCiliumNetworkPolicies ); do

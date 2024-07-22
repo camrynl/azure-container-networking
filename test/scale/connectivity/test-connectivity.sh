@@ -67,7 +67,7 @@ while [[ $# -gt 0 ]]; do
         --kubeconfig=*)
             file=${1#*=}
             KUBECONFIG_ARG="--kubeconfig $file"
-            test -f $file || { 
+            test -f $file || {
                 log "ERROR: kubeconfig not found: [$file]"
                 exit 6
             }
@@ -75,7 +75,7 @@ while [[ $# -gt 0 ]]; do
             ;;
         --kubectl-binary=*)
             KUBECTL=${1#*=}
-            test -f $KUBECTL || { 
+            test -f $KUBECTL || {
                 log "ERROR: kubectl binary not found: [$KUBECTL]"
                 exit 1
             }
@@ -111,31 +111,27 @@ NETPOL_SLEEP: $NETPOL_SLEEP
 EOF
 
 ## HELPER FUNCTIONS
-connectFromPinger() {
+connectToGoogle() {
     local from=$1
-    local dstIP=$2
-    log "checking connectivity from $from to $dstIP"
-    $KUBECTL $KUBECONFIG_ARG exec -n connectivity-test $from -- /agnhost connect --timeout=${TIMEOUT}s $dstIP:80
+    log "checking connectivity from $from to www.google.com"
+    string RETVAL="$(k exec -n scale-test "$from" --  curl -sL www.google.com -o /dev/null)"
+    if [ "$RETVAL" = "200" ]; then
+        return true
+    else
+        return false
+    fi
 }
 
-connectFromScalePod() {
+connectToBing() {
     local from=$1
-    local dstIP=$2
-    log "checking connectivity from $from to $dstIP"
-    $KUBECTL $KUBECONFIG_ARG exec -n scale-test $from -- /agnhost connect --timeout=${TIMEOUT}s $dstIP:80
+    log "checking connectivity from $from to www.bing.com"
+    string RETVAL="$(k exec -n scale-test "$from" --  curl -sL www.google.com -o /dev/null)"
+    if [ "$RETVAL" = "200" ]; then
+        return false
+    else
+        return true
+    fi
 }
-
-## VALIDATE
-test -f pinger.yaml || {
-    log "ERROR: change into the connectivity/ directory when running this script"
-    exit 6
-}
-
-if [[ -z `$KUBECTL $KUBECONFIG_ARG get nodes -l connectivity-test=true | grep -v NAME` ]]; then
-    $KUBECTL $KUBECONFIG_ARG get node
-    log "ERROR: label a node with: kubectl label node <name> connectivity-test=true"
-    exit 6
-fi
 
 ## RUN
 set -e
@@ -184,118 +180,22 @@ else
     log "will verify connectivity to $numScalePodsToVerify scale Pods"
 fi
 
-## CREATE PINGERS
-$KUBECTL $KUBECONFIG_ARG create ns connectivity-test || true
-$KUBECTL $KUBECONFIG_ARG apply -f pinger.yaml
-sleep 5s
-log "waiting for pingers to be ready..."
-$KUBECTL $KUBECONFIG_ARG wait --for=condition=Ready pod -n connectivity-test -l app=pinger --timeout=60s || {
-    log "ERROR: pingers never ran"
-    exit 7
-}
-
-pingerNameIPs=(`$KUBECTL $KUBECONFIG_ARG get pod -n connectivity-test -l app=pinger --field-selector=status.phase==Running -o jsonpath='{range .items[*]}{@.metadata.name}{","}{@.status.podIP}{" "}{end}'`)
-pinger1NameIP=(`echo "${pingerNameIPs[0]}" | tr ',' ' '`)
-pinger1=${pinger1NameIP[0]}
-pinger1IP=${pinger1NameIP[1]}
-log "pinger1: $pinger1, IP: $pinger1IP"
-pinger2NameIP=(`echo "${pingerNameIPs[1]}" | tr ',' ' '`)
-pinger2=${pinger2NameIP[0]}
-pinger2IP=${pinger2NameIP[1]}
-log "pinger2: $pinger2, IP: $pinger2IP"
-if [[ -z $pinger1 || -z $pinger1IP || -z $pinger2 || -z $pinger2IP ]]; then
-    log "ERROR: expected two pingers to be running with IPs. Exiting."
-    exit 7
-fi
-
 ## VERIFY CONNECTIVITY
-verifyInitialConnectivity() {
-    connectFromPinger $pinger1 $pinger2IP || {
-        log "WARNING: expected pinger1 to be able to connect to pinger2. Pods may need more time to bootup"
-        return 8
-    }
 
-    connectFromPinger $pinger2 $pinger2 || {
-        log "WARNING: expected pinger2 to be able to connect to pinger1. Pods may need more time to bootup"
-        return 8
-    }
-
-    for i in $(seq 0 $(( ${#scalePods[@]} - 1 ))); do
-        scalePod=${scalePods[$i]}
-        for j in $(seq 0 $(( ${#scalePods[@]} - 1 ))); do
-            if [[ $i == $j ]]; then
-                continue
-            fi
-
-            dstPod=${scalePods[$j]}
-            dstIP=${scalePodIPs[$j]}
-            connectFromScalePod $scalePod $dstIP || {
-                log "WARNING: expected scale Pod $scalePod to be able to connect to scale Pod $dstPod"
-                return 8
-            }
-        done
-    done
-
-    for i in $(seq 0 $(( ${#scalePods[@]} - 1 ))); do
-        scalePod=${scalePods[$i]}
-        scalePodIP=${scalePodIPs[$i]}
-
-        connectFromScalePod $scalePod $pinger1IP && {
-            log "WARNING: expected scale Pod $scalePod to NOT be able to connect to pinger1"
-            return 8
-        }
-
-        connectFromPinger $pinger1 $scalePodIP && {
-            log "WARNING: expected pinger1 to NOT be able to connect to scale Pod $scalePod"
-            return 8
-        }
-    done
-
-    return 0
-}
-
-log "verifying initial connectivity at $(date)..."
-connectivityStartDate=`date +%s`
-maxWaitDate=$(( $connectivityStartDate + $maxWaitForInitialConnectivity ))
-prevTryDate=$connectivityStartDate
-while : ; do
-    verifyInitialConnectivity && break
-
-    currDate=`date +%s`
-    if [[ $currDate -gt $maxWaitDate ]]; then
-        log "ERROR: initial connectivity test timed out. Last try was about $(( $currDate - $connectivityStartDate )) seconds after pinger Pods began running"
-        exit 8
-    fi
-
-    log "WARNING: initial connectivity test failed. Retrying in $CONNECTIVITY_SLEEP seconds..."
-    sleep $CONNECTIVITY_SLEEP
-
-    prevTryDate=$currDate
-done
-
-low=0
-if [[ $prevTryDate -gt $connectivityStartDate ]]; then
-    low=$(( $prevTryDate - $connectivityStartDate - $CONNECTIVITY_SLEEP ))
-fi
-high=$(( `date +%s` - $connectivityStartDate ))
-log "SUCCESS: all initial connectivity tests passed. Took between $low and $high seconds to succeed"
-
-## ADD NETWORK POLICY AND VERIFY CONNECTIVITY
-log "adding allow-pinger NetworkPolicy at $(date)..."
-$KUBECTL $KUBECONFIG_ARG apply -f allow-pinger.yaml
+# TODO: Add initial connectivity check + deploy actual CilNetPol here.
 
 verifyNetPol() {
         for i in $(seq 0 $(( ${#scalePods[@]} - 1 ))); do
         scalePod=${scalePods[$i]}
         scalePodIP=${scalePodIPs[$i]}
 
-        connectFromScalePod $scalePod $pinger1IP || {
-            log "WARNING: expected scale Pod $scalePod to be able to connect to pinger1 after adding NetworkPolicy"
+        connectToGoogle $scalePod || {
+            log: "WARNING: expected scale Pod $scalePod to be able to connect to Google after adding CiliumNetworkPolicy"
             return 9
         }
 
-        connectFromPinger $pinger1 $scalePodIP || {
-            log "WARNING: expected pinger1 to be able to connect to scale Pod $scalePod after adding NetworkPolicy"
+        connectToBing $scalePod || {
+            log: "WARNING: expected scale Pod $scalePod to not be able to connect to Bing after adding CiliumNetworkPolicy"
             return 9
         }
     done
@@ -309,14 +209,14 @@ maxWaitDate=$(( $netpolStartDate + $maxWaitAfterAddingNetpol ))
 prevTryDate=$netpolStartDate
 while : ; do
     verifyNetPol && break
-        
+
     currDate=`date +%s`
     if [[ $currDate -gt $maxWaitDate ]]; then
         log "ERROR: allow-pinger NetworkPolicy has not taken effact. Last try was at least $(( $prevTryDate - $netpolStartDate )) seconds after creating allow-pinger NetworkPolicy"
         exit 9
     fi
 
-    log "WARNING: verifying allow-pinger NetworkPolicy failed. Current time: $(date). Retrying in $NETPOL_SLEEP seconds..."
+    log "WARNING: verifying CiliumNetworkPolicy failed. Current time: $(date). Retrying in $NETPOL_SLEEP seconds..."
     sleep $NETPOL_SLEEP
 
     prevTryDate=$currDate
@@ -327,7 +227,7 @@ if [[ $prevTryDate -gt $netpolStartDate ]]; then
     low=$(( $prevTryDate - $netpolStartDate - $NETPOL_SLEEP ))
 fi
 high=$(( `date +%s` - $netpolStartDate ))
-log "SUCCESS: all connectivity tests passed after adding allow-pinger NetworkPolicy. Took between $low and $high seconds to take effect"
+log "SUCCESS: all connectivity tests passed after adding CiliumNetworkPolicy. Took between $low and $high seconds to take effect"
 
 echo
 log "FINISHED at $(date -u). Had started at $startDate."
