@@ -114,7 +114,7 @@ EOF
 connectToGoogle() {
     local from=$1
     log "checking connectivity from $from to www.google.com"
-    RETVAL="$(k exec -n scale-test "$from" --  curl -sL www.google.com -o /dev/null)"
+    RETVAL="$(k exec -n scale-test "$from" --  curl -sL -w "%{http_code}" www.google.com -o /dev/null)"
     if [ "$RETVAL" = "200" ]; then
         return 0
     else
@@ -125,7 +125,7 @@ connectToGoogle() {
 connectToBing() {
     local from=$1
     log "checking connectivity from $from to www.bing.com"
-    string RETVAL="$(k exec -n scale-test "$from" --  curl -sL www.google.com -o /dev/null)"
+    RETVAL="$(k exec -n scale-test "$from" --  curl -sL -w "%{http_code}" www.bing.com -o /dev/null)"
     if [ "$RETVAL" = "200" ]; then
         return 1
     else

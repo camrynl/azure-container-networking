@@ -390,18 +390,11 @@ generateDeployments() {
             done
             perl -pi -e "s/OTHER_LABELS_8_SPACES/$depLabels/g" $outFile
 
-            for j in $(seq 1 $numCiliumNetworkPolicies); do
-                valNum=$j
-                a=`printf "%05d" $j`
-                fileName=generated/ciliumnetworkpolicies/applied/policy-$a.yaml
-                sed "s/TEMP_NAME/policy-$a/g" templates/ciliumnetworkpolicy.yaml > $fileName
-                if [[ $valNum -ge $(( numSharedLabelsPerPod - 2 )) ]]; then
-                    valNum=$(( $numSharedLabelsPerPod - 2 ))
-                fi
-                k=`printf "%05d" $valNum`
-                cnpLabel="$labelPrefix-00001"
-                sed -i "s/TEMP_LABEL_NAME/$cnpLabel/g" $fileName
-            done
+            # Relies on # of CNP = # of Deployment
+            fileName=generated/ciliumnetworkpolicies/applied/policy-$i.yaml
+            sed "s/TEMP_NAME/policy-$i/g" templates/ciliumnetworkpolicy.yaml > $fileName
+            cnpLabel="$labelPrefix-00001"
+            sed -i "s/TEMP_LABEL_NAME/$cnpLabel/g" $fileName
 
         else
             sed -i "s/OTHER_LABELS_6_SPACES//g" $outFile
