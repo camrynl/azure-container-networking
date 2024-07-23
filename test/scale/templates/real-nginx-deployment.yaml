@@ -24,7 +24,7 @@ spec:
         scale-test: "true"
       containers:
       - name: nginx
-        image: docker pull mcr.microsoft.com/mirror/docker/library/nginx:1.25
+        image: mcr.microsoft.com/mirror/docker/library/nginx:1.25
         ports:
         - name: http
           containerPort: 80
