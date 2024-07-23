@@ -399,7 +399,7 @@ generateDeployments() {
                     valNum=$(( $numSharedLabelsPerPod - 2 ))
                 fi
                 k=`printf "%05d" $valNum`
-                cnpLabel="$labelPrefix-0"
+                cnpLabel="$labelPrefix-00001"
                 sed -i "s/TEMP_LABEL_NAME/$cnpLabel/g" $fileName
             done
 
