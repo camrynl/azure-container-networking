@@ -370,7 +370,7 @@ generateDeployments() {
     local depKind=$3
 
     for num in $(seq 1 $numDeployments); do
-        i="`printf "%05g" $i`"
+        i="`printf "%05g" $num`"
         name="$depKind-dep-$i"
         labelPrefix="$depKind-dep-lab-$i"
         outFile=generated/deployments/$depKind/$name.yaml
