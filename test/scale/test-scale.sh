@@ -369,7 +369,8 @@ generateDeployments() {
     local numReplicas=$2
     local depKind=$3
 
-    for i in $(seq -f "%05g" 1 $numDeployments); do
+    for num in $(seq 1 $numDeployments); do
+        i="`printf "%05g" $i`"
         name="$depKind-dep-$i"
         labelPrefix="$depKind-dep-lab-$i"
         outFile=generated/deployments/$depKind/$name.yaml
@@ -393,7 +394,7 @@ generateDeployments() {
             # Relies on # of CNP = # of Deployment.
 
             # Only create CNP for 25% of Deployment. = 0.25 * 1000 * 100 = 25000 pods
-            if [[ $i -le 25 ]]; then
+            if [[ $num -le 25 ]]; then
                 fileName=generated/ciliumnetworkpolicies/applied/policy-$i.yaml
                 sed "s/TEMP_NAME/policy-$i/g" templates/ciliumnetworkpolicy.yaml > $fileName
                 cnpLabel="$labelPrefix-00001"
