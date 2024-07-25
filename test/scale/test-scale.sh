@@ -590,30 +590,27 @@ if [[ $numUniqueLabelsPerPod -gt 0 ]]; then
 fi
 
 # to better evaluate time to apply ACLs, wait for pods to come up first (takes a variable amount of time) before applying the NetPols
-wait_for_pods # 100 * 25 up
+sleep 30 # 100 * 25 up
 # Scale deployments in batches
 echo "scaling deployments up to 50 replicas"
 DEPLOYMENT_LIST=$(kubectl -n scale-test get deployment -o jsonpath='{.items[*].metadata.name}')
 for deployment_name in $DEPLOYMENT_LIST; do
     kubectl -n scale-test scale deployment $deployment_name --replicas 50
 done
-wait_for_pods
-sleep 30
+sleep 60
 echo "scaling deployments up to 75 replicas"
 DEPLOYMENT_LIST=$(kubectl -n scale-test get deployment -o jsonpath='{.items[*].metadata.name}')
 for deployment_name in $DEPLOYMENT_LIST; do
     kubectl -n scale-test scale deployment $deployment_name --replicas 75
 done
 wait_for_pods
-sleep 30
+sleep 60
 echo "scaling deployments up to 100 replicas"
 DEPLOYMENT_LIST=$(kubectl -n scale-test get deployment -o jsonpath='{.items[*].metadata.name}')
 for deployment_name in $DEPLOYMENT_LIST; do
     kubectl -n scale-test scale deployment $deployment_name --replicas 100
 done
 wait_for_pods
-
-sleep 60
 
 if [[ $numUnappliedNetworkPolicies -gt 0 ]]; then
     set -x

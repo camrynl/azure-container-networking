@@ -83,6 +83,7 @@ stages:
       - job: scale_deployments
         pool:
           name: "$(BUILD_POOL_NAME_DEFAULT)"
+        timeoutInMinutes: 150
         steps:
           - task: AzureCLI@1
             inputs:
@@ -192,6 +193,7 @@ stages:
       - job: deploy_service
         pool:
           name: "$(BUILD_POOL_NAME_DEFAULT)"
+        timeoutInMinutes: 150
         steps:
           - task: AzureCLI@1
             inputs:
