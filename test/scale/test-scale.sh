@@ -603,8 +603,8 @@ DEPLOYMENT_LIST=$(kubectl -n scale-test get deployment -o jsonpath='{.items[*].m
 for deployment_name in $DEPLOYMENT_LIST; do
     kubectl -n scale-test scale deployment $deployment_name --replicas 75
 done
-wait_for_pods
-sleep 60
+
+sleep 120
 echo "scaling deployments up to 100 replicas"
 DEPLOYMENT_LIST=$(kubectl -n scale-test get deployment -o jsonpath='{.items[*].metadata.name}')
 for deployment_name in $DEPLOYMENT_LIST; do
