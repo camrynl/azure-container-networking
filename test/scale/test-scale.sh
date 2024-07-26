@@ -409,7 +409,9 @@ generateDeployments() {
             # fi
 
             # Only create CNP for 25% of Deployment. = 0.25 * 500 * 50 = 6250 pods
-            if [[ $num -le 125 ]]; then
+
+            # 50%
+            if [[ $num -le 250 ]]; then
                 fileName=generated/ciliumnetworkpolicies/applied/policy-$i.yaml
                 sed "s/TEMP_NAME/policy-$i/g" templates/ciliumnetworkpolicy.yaml > $fileName
                 cnpLabel="$labelPrefix-00001"
