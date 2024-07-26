@@ -345,8 +345,9 @@ wait_for_pods() {
             # ready_deployments=(`$KUBECTL $KUBECONFIG_ARG get deployments -n scale-test | grep 100/100 | wc -l`)
             # [ $ready_deployments == "1000" ] && set -e +x && break
 
-            ready_deployments=(`$KUBECTL $KUBECONFIG_ARG get deployments -n scale-test | grep 100/100 | wc -l`)
-            [ $ready_deployments == "500" ] && set -e +x && break
+            expect="$numRealReplicas/$numRealReplicas"
+            ready_deployments=(`$KUBECTL $KUBECONFIG_ARG get deployments -n scale-test | grep $expect | wc -l`)
+            [ $ready_deployments == $numRealDeployments ] && set -e +x && break
 
             # $KUBECTL $KUBECONFIG_ARG wait --for=condition=Ready pods -n scale-test -l is-real=true --all --timeout=0 && set -e +x && break
             set -e +x
@@ -411,7 +412,14 @@ generateDeployments() {
             # Only create CNP for 25% of Deployment. = 0.25 * 500 * 50 = 6250 pods
 
             # 50%
-            if [[ $num -le 250 ]]; then
+
+            # for 500 nodes only; assumes that user passed in 25 or 50 for % in numCiliumNetworkPolicies
+            x=250
+            if [ $numCiliumNetworkPolicies == 25 ]; then
+                x=125
+            fi
+
+            if [[ $num -le $x ]]; then
                 fileName=generated/ciliumnetworkpolicies/applied/policy-$i.yaml
                 sed "s/TEMP_NAME/policy-$i/g" templates/ciliumnetworkpolicy.yaml > $fileName
                 cnpLabel="$labelPrefix-00001"
@@ -609,23 +617,33 @@ fi
 # to better evaluate time to apply ACLs, wait for pods to come up first (takes a variable amount of time) before applying the NetPols
 sleep 300 # 100 * 25 up
 # Scale deployments in batches
-echo "scaling deployments up to 50 replicas"
-DEPLOYMENT_LIST=$(kubectl -n scale-test get deployment -o jsonpath='{.items[*].metadata.name}')
-for deployment_name in $DEPLOYMENT_LIST; do
-    kubectl -n scale-test scale deployment $deployment_name --replicas 50
-done
-sleep 300
-echo "scaling deployments up to 75 replicas"
-DEPLOYMENT_LIST=$(kubectl -n scale-test get deployment -o jsonpath='{.items[*].metadata.name}')
-for deployment_name in $DEPLOYMENT_LIST; do
-    kubectl -n scale-test scale deployment $deployment_name --replicas 75
-done
-sleep 300
-echo "scaling deployments up to 100 replicas"
-DEPLOYMENT_LIST=$(kubectl -n scale-test get deployment -o jsonpath='{.items[*].metadata.name}')
-for deployment_name in $DEPLOYMENT_LIST; do
-    kubectl -n scale-test scale deployment $deployment_name --replicas 100
-done
+
+if [ $numRealReplicas -ge 50 ]; then
+    echo "scaling deployments up to 50 replicas"
+    DEPLOYMENT_LIST=$(kubectl -n scale-test get deployment -o jsonpath='{.items[*].metadata.name}')
+    for deployment_name in $DEPLOYMENT_LIST; do
+        kubectl -n scale-test scale deployment $deployment_name --replicas 50
+    done
+fi
+
+if [ $numRealReplicas -ge 75 ]; then
+    sleep 300
+    echo "scaling deployments up to 75 replicas"
+    DEPLOYMENT_LIST=$(kubectl -n scale-test get deployment -o jsonpath='{.items[*].metadata.name}')
+    for deployment_name in $DEPLOYMENT_LIST; do
+        kubectl -n scale-test scale deployment $deployment_name --replicas 75
+    done
+fi
+
+if [ $numRealReplicas -ge 100 ]; then
+    sleep 300
+    echo "scaling deployments up to 100 replicas"
+    DEPLOYMENT_LIST=$(kubectl -n scale-test get deployment -o jsonpath='{.items[*].metadata.name}')
+    for deployment_name in $DEPLOYMENT_LIST; do
+        kubectl -n scale-test scale deployment $deployment_name --replicas 100
+    done
+fi
+
 wait_for_pods
 
 sleep 300
