@@ -345,7 +345,7 @@ wait_for_pods() {
             # ready_deployments=(`$KUBECTL $KUBECONFIG_ARG get deployments -n scale-test | grep 100/100 | wc -l`)
             # [ $ready_deployments == "1000" ] && set -e +x && break
 
-            ready_deployments=(`$KUBECTL $KUBECONFIG_ARG get deployments -n scale-test | grep 50/50 | wc -l`)
+            ready_deployments=(`$KUBECTL $KUBECONFIG_ARG get deployments -n scale-test | grep 100/100 | wc -l`)
             [ $ready_deployments == "500" ] && set -e +x && break
 
             # $KUBECTL $KUBECONFIG_ARG wait --for=condition=Ready pods -n scale-test -l is-real=true --all --timeout=0 && set -e +x && break
@@ -605,28 +605,28 @@ if [[ $numUniqueLabelsPerPod -gt 0 ]]; then
 fi
 
 # to better evaluate time to apply ACLs, wait for pods to come up first (takes a variable amount of time) before applying the NetPols
-sleep 30 # 100 * 25 up
+sleep 300 # 100 * 25 up
 # Scale deployments in batches
 echo "scaling deployments up to 50 replicas"
 DEPLOYMENT_LIST=$(kubectl -n scale-test get deployment -o jsonpath='{.items[*].metadata.name}')
 for deployment_name in $DEPLOYMENT_LIST; do
     kubectl -n scale-test scale deployment $deployment_name --replicas 50
 done
-sleep 60
-# echo "scaling deployments up to 75 replicas"
-# DEPLOYMENT_LIST=$(kubectl -n scale-test get deployment -o jsonpath='{.items[*].metadata.name}')
-# for deployment_name in $DEPLOYMENT_LIST; do
-#     kubectl -n scale-test scale deployment $deployment_name --replicas 75
-# done
-
-# sleep 120
-# echo "scaling deployments up to 100 replicas"
-# DEPLOYMENT_LIST=$(kubectl -n scale-test get deployment -o jsonpath='{.items[*].metadata.name}')
-# for deployment_name in $DEPLOYMENT_LIST; do
-#     kubectl -n scale-test scale deployment $deployment_name --replicas 100
-# done
+sleep 300
+echo "scaling deployments up to 75 replicas"
+DEPLOYMENT_LIST=$(kubectl -n scale-test get deployment -o jsonpath='{.items[*].metadata.name}')
+for deployment_name in $DEPLOYMENT_LIST; do
+    kubectl -n scale-test scale deployment $deployment_name --replicas 75
+done
+sleep 300
+echo "scaling deployments up to 100 replicas"
+DEPLOYMENT_LIST=$(kubectl -n scale-test get deployment -o jsonpath='{.items[*].metadata.name}')
+for deployment_name in $DEPLOYMENT_LIST; do
+    kubectl -n scale-test scale deployment $deployment_name --replicas 100
+done
 wait_for_pods
 
+sleep 300
 if [[ $numUnappliedNetworkPolicies -gt 0 ]]; then
     set -x
     $KUBECTL $KUBECONFIG_ARG apply -f generated/networkpolicies/unapplied
@@ -652,6 +652,7 @@ echo
 echo "done scaling at $(date -u). Had started at $startDate."
 echo
 
+sleep 300
 echo "performing deletions if configured..."
 
 if [[ $sleepAfterCreation != "" ]]; then
