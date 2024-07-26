@@ -341,7 +341,10 @@ wait_for_pods() {
             echo "waiting for real pods to run (try $count)"
             count=$((count+1))
             set +e -x
-            $KUBECTL $KUBECONFIG_ARG wait --for=condition=Ready pods -n scale-test -l is-real=true --all --timeout=0 && set -e +x && break
+            ready_deployments=(`$KUBECTL $KUBECONFIG_ARG get deployments -n scale-test | grep 100/100 | wc -l`)
+            [ $ready_deployments == "1000" ] && set -e +x && break
+
+            # $KUBECTL $KUBECONFIG_ARG wait --for=condition=Ready pods -n scale-test -l is-real=true --all --timeout=0 && set -e +x && break
             set -e +x
             endDate=`date +%s`
             if [[ $endDate -gt $(( startDate + (10*60) )) ]]; then
