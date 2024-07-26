@@ -338,11 +338,15 @@ wait_for_pods() {
         startDate=`date +%s`
         count=0
         while : ; do
+            sleep 60
             echo "waiting for real pods to run (try $count)"
             count=$((count+1))
             set +e -x
-            ready_deployments=(`$KUBECTL $KUBECONFIG_ARG get deployments -n scale-test | grep 100/100 | wc -l`)
-            [ $ready_deployments == "1000" ] && set -e +x && break
+            # ready_deployments=(`$KUBECTL $KUBECONFIG_ARG get deployments -n scale-test | grep 100/100 | wc -l`)
+            # [ $ready_deployments == "1000" ] && set -e +x && break
+
+            ready_deployments=(`$KUBECTL $KUBECONFIG_ARG get deployments -n scale-test | grep 50/50 | wc -l`)
+            [ $ready_deployments == "500" ] && set -e +x && break
 
             # $KUBECTL $KUBECONFIG_ARG wait --for=condition=Ready pods -n scale-test -l is-real=true --all --timeout=0 && set -e +x && break
             set -e +x
@@ -397,7 +401,15 @@ generateDeployments() {
             # Relies on # of CNP = # of Deployment.
 
             # Only create CNP for 25% of Deployment. = 0.25 * 1000 * 100 = 25000 pods
-            if [[ $num -le 25 ]]; then
+            # if [[ $num -le 250 ]]; then
+            #     fileName=generated/ciliumnetworkpolicies/applied/policy-$i.yaml
+            #     sed "s/TEMP_NAME/policy-$i/g" templates/ciliumnetworkpolicy.yaml > $fileName
+            #     cnpLabel="$labelPrefix-00001"
+            #     sed -i "s/TEMP_LABEL_NAME/$cnpLabel/g" $fileName
+            # fi
+
+            # Only create CNP for 25% of Deployment. = 0.25 * 500 * 50 = 6250 pods
+            if [[ $num -le 125 ]]; then
                 fileName=generated/ciliumnetworkpolicies/applied/policy-$i.yaml
                 sed "s/TEMP_NAME/policy-$i/g" templates/ciliumnetworkpolicy.yaml > $fileName
                 cnpLabel="$labelPrefix-00001"
@@ -601,18 +613,18 @@ for deployment_name in $DEPLOYMENT_LIST; do
     kubectl -n scale-test scale deployment $deployment_name --replicas 50
 done
 sleep 60
-echo "scaling deployments up to 75 replicas"
-DEPLOYMENT_LIST=$(kubectl -n scale-test get deployment -o jsonpath='{.items[*].metadata.name}')
-for deployment_name in $DEPLOYMENT_LIST; do
-    kubectl -n scale-test scale deployment $deployment_name --replicas 75
-done
+# echo "scaling deployments up to 75 replicas"
+# DEPLOYMENT_LIST=$(kubectl -n scale-test get deployment -o jsonpath='{.items[*].metadata.name}')
+# for deployment_name in $DEPLOYMENT_LIST; do
+#     kubectl -n scale-test scale deployment $deployment_name --replicas 75
+# done
 
-sleep 120
-echo "scaling deployments up to 100 replicas"
-DEPLOYMENT_LIST=$(kubectl -n scale-test get deployment -o jsonpath='{.items[*].metadata.name}')
-for deployment_name in $DEPLOYMENT_LIST; do
-    kubectl -n scale-test scale deployment $deployment_name --replicas 100
-done
+# sleep 120
+# echo "scaling deployments up to 100 replicas"
+# DEPLOYMENT_LIST=$(kubectl -n scale-test get deployment -o jsonpath='{.items[*].metadata.name}')
+# for deployment_name in $DEPLOYMENT_LIST; do
+#     kubectl -n scale-test scale deployment $deployment_name --replicas 100
+# done
 wait_for_pods
 
 if [[ $numUnappliedNetworkPolicies -gt 0 ]]; then
