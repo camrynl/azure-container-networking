@@ -384,7 +384,13 @@ generateDeployments() {
         outFile=generated/deployments/$depKind/$name.yaml
 
         sed "s/TEMP_NAME/$name/g" templates/$depKind-deployment.yaml > $outFile
-        sed -i "s/TEMP_REPLICAS/25/g" $outFile
+
+        initReplicas=25
+        if [[ $numReplicas -lt $initReplicas ]]; then
+            initReplicas=$numReplicas
+        fi
+
+        sed -i "s/TEMP_REPLICAS/$initReplicas/g" $outFile
 
         if [[ $numUniqueLabelsPerDeployment -gt 0 ]]; then
             depLabels=""
@@ -413,11 +419,14 @@ generateDeployments() {
 
             # 50%
 
-            # for 500 nodes only; assumes that user passed in 25 or 50 for % in numCiliumNetworkPolicies
-            x=250
-            if [ $numCiliumNetworkPolicies == 25 ]; then
-                x=125
+            # assumes that user passed in 25 or 50 for % in numCiliumNetworkPolicies
+            x=0
+            if [[ $numCiliumNetworkPolicies == 25 ]]; then
+                x=$((numDeployments/4))
+            elif [[ $numCiliumNetworkPolicies == 50 ]]; then
+                x=$((numDeployments/2))
             fi
+            echo "creating $x ciliumnetworkpolicies"
 
             if [[ $num -le $x ]]; then
                 fileName=generated/ciliumnetworkpolicies/applied/policy-$i.yaml
