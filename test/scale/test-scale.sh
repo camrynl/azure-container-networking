@@ -338,7 +338,7 @@ wait_for_pods() {
         startDate=`date +%s`
         count=0
         while : ; do
-            sleep 60
+            sleep 120
             echo "waiting for real pods to run (try $count)"
             count=$((count+1))
             set +e -x
@@ -347,10 +347,9 @@ wait_for_pods() {
 
             expect="$numRealReplicas/$numRealReplicas"
             ready_deployments=(`$KUBECTL $KUBECONFIG_ARG get deployments -n scale-test | grep $expect | wc -l`)
-            [ $ready_deployments == $numRealDeployments ] && set -e +x && break
+            [ $ready_deployments == $numRealDeployments ] && break
 
             # $KUBECTL $KUBECONFIG_ARG wait --for=condition=Ready pods -n scale-test -l is-real=true --all --timeout=0 && set -e +x && break
-            set -e +x
             endDate=`date +%s`
             if [[ $endDate -gt $(( startDate + (60*60) )) ]]; then
                 echo "timed out waiting for all real pods to run"
@@ -403,6 +402,9 @@ generateDeployments() {
             for j in $(seq -f "%05g" 1 $numUniqueLabelsPerDeployment); do
                 depLabels="$depLabels\n        $labelPrefix-$j: val"
             done
+            for k in $(seq -f "%05g" 1 $numSharedLabelsPerPod); do
+                depLabels="$depLabels\n        shared-lab-$k: val"
+            done
             perl -pi -e "s/OTHER_LABELS_8_SPACES/$depLabels/g" $outFile
 
             # Relies on # of CNP = # of Deployment.
@@ -425,6 +427,8 @@ generateDeployments() {
                 x=$((numDeployments/4))
             elif [[ $numCiliumNetworkPolicies == 50 ]]; then
                 x=$((numDeployments/2))
+            elif [[ $numCiliumNetworkPolicies == 100 ]]; then
+                x=$numDeployments
             fi
             echo "creating $x ciliumnetworkpolicies"
 
@@ -517,19 +521,19 @@ if [[ $DEBUG_EXIT_AFTER_GENERATION == true ]]; then
     exit 0
 fi
 
-## VALIDATE REAL NODES
-echo "checking if there are enough real nodes..."
-numRealNodes=$($KUBECTL $KUBECONFIG_ARG get nodes -l scale-test=true | grep -v NAME | wc -l)
-if [[ $numRealNodes -lt $numRealNodesRequired ]]; then
-    $KUBECTL $KUBECONFIG_ARG get nodes
-    echo "ERROR: need $numRealNodesRequired real nodes to achieve a scale of $numRealPods real Pods. Make sure to label nodes with: kubectl label node <name> scale-test=true"
-    exit 1
-fi
+# ## VALIDATE REAL NODES
+# echo "checking if there are enough real nodes..."
+# numRealNodes=$($KUBECTL $KUBECONFIG_ARG get nodes -l scale-test=true | grep -v NAME | wc -l)
+# if [[ $numRealNodes -lt $numRealNodesRequired ]]; then
+#     $KUBECTL $KUBECONFIG_ARG get nodes
+#     echo "ERROR: need $numRealNodesRequired real nodes to achieve a scale of $numRealPods real Pods. Make sure to label nodes with: kubectl label node <name> scale-test=true"
+#     exit 1
+# fi
 
 ## DELETE PRIOR STATE
 echo "cleaning up previous scale test state..."
-$KUBECTL $KUBECONFIG_ARG delete ns scale-test connectivity-test --ignore-not-found
-$KUBECTL $KUBECONFIG_ARG delete node -l type=kwok
+# $KUBECTL $KUBECONFIG_ARG delete ns scale-test connectivity-test --ignore-not-found
+# $KUBECTL $KUBECONFIG_ARG delete node -l type=kwok
 
 if [[ $USING_NPM == true ]]; then
     echo "restarting NPM pods..."
@@ -570,6 +574,30 @@ set -x
 $KUBECTL $KUBECONFIG_ARG create ns scale-test
 set +x
 
+if [[ $numUnappliedNetworkPolicies -gt 0 ]]; then
+    set -x
+    $KUBECTL $KUBECONFIG_ARG apply -f generated/networkpolicies/unapplied
+    set +x
+fi
+if [[ $numNetworkPolicies -gt 0 ]]; then
+    set -x
+    $KUBECTL $KUBECONFIG_ARG apply -f generated/networkpolicies/applied
+    set +x
+fi
+if [[ $numUnappliedCiliumNetworkPolicies -gt 0 ]]; then
+    set -x
+    $KUBECTL $KUBECONFIG_ARG apply -f generated/ciliumnetworkpolicies/unapplied
+    set +x
+fi
+if [[ $numCiliumNetworkPolicies -gt 0 ]]; then
+    set -x
+    $KUBECTL $KUBECONFIG_ARG apply -f generated/ciliumnetworkpolicies/applied
+    set +x
+fi
+
+sleep 300
+
+
 if [[ $numKwokNodes -gt 0 ]]; then
     set -x
     $KUBECTL $KUBECONFIG_ARG apply -f generated/kwok-nodes/
@@ -592,20 +620,20 @@ if [[ $numRealServices -gt 0 ]]; then
 fi
 
 
-add_shared_labels() {
-    if [[ $numSharedLabelsPerPod -gt 0 ]]; then
-        sharedLabels=""
-        for i in $(seq -f "%05g" 1 $numSharedLabelsPerPod); do
-            sharedLabels="$sharedLabels shared-lab-$i=val"
-        done
+# add_shared_labels() {
+#     if [[ $numSharedLabelsPerPod -gt 0 ]]; then
+#         sharedLabels=""
+#         for i in $(seq -f "%05g" 1 $numSharedLabelsPerPod); do
+#             sharedLabels="$sharedLabels shared-lab-$i=val"
+#         done
 
-        set -x
-        $KUBECTL $KUBECONFIG_ARG label pods -n scale-test --all $sharedLabels --overwrite
-        set +x
-    fi
-}
+#         set -x
+#         $KUBECTL $KUBECONFIG_ARG label pods -n scale-test --all $sharedLabels --overwrite
+#         set +x
+#     fi
+# }
 
-add_shared_labels
+# add_shared_labels
 
 if [[ $numUniqueLabelsPerPod -gt 0 ]]; then
     count=1
@@ -627,11 +655,24 @@ fi
 sleep 300 # 100 * 25 up
 # Scale deployments in batches
 
-if [ $numRealReplicas -ge 50 ]; then
+
+if [ $numRealReplicas -ge 40 ]; then
     echo "scaling deployments up to 50 replicas"
     DEPLOYMENT_LIST=$(kubectl -n scale-test get deployment -o jsonpath='{.items[*].metadata.name}')
+    counter=0
     for deployment_name in $DEPLOYMENT_LIST; do
-        kubectl -n scale-test scale deployment $deployment_name --replicas 50
+        kubectl -n scale-test scale deployment $deployment_name --replicas $numRealReplicas
+        counter=$((counter+1))
+        if [ $((counter % 10)) -eq 0 ]; then
+            echo "Pausing for 5 seconds..."
+            sleep 5s
+        fi
+        # sleep 1s
+        # ((counter++))
+        # if ((counter % 250 == 0)); then
+        #     echo "Pausing for 5 seconds..."
+        #     sleep 10s
+        # fi
     done
 fi
 
@@ -654,28 +695,6 @@ if [ $numRealReplicas -ge 100 ]; then
 fi
 
 wait_for_pods
-
-sleep 300
-if [[ $numUnappliedNetworkPolicies -gt 0 ]]; then
-    set -x
-    $KUBECTL $KUBECONFIG_ARG apply -f generated/networkpolicies/unapplied
-    set +x
-fi
-if [[ $numNetworkPolicies -gt 0 ]]; then
-    set -x
-    $KUBECTL $KUBECONFIG_ARG apply -f generated/networkpolicies/applied
-    set +x
-fi
-if [[ $numUnappliedCiliumNetworkPolicies -gt 0 ]]; then
-    set -x
-    $KUBECTL $KUBECONFIG_ARG apply -f generated/ciliumnetworkpolicies/unapplied
-    set +x
-fi
-if [[ $numCiliumNetworkPolicies -gt 0 ]]; then
-    set -x
-    $KUBECTL $KUBECONFIG_ARG apply -f generated/ciliumnetworkpolicies/applied
-    set +x
-fi
 
 echo
 echo "done scaling at $(date -u). Had started at $startDate."

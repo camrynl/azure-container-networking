@@ -1,0 +1,14 @@
+apiVersion: v1
+data:
+  debug: "true"
+  enable-l7-proxy: "true"
+  enable-ipv4: "true"
+  enable-ipv6: "true"
+  disable-embedded-dns-proxy: "true"
+  enable-standalone-dns-proxy: "true"
+  tofqdns-proxy-port: "40046"
+  tofqdns-server-port: "40045"
+metadata:
+  name: fqdn-cm
+  namespace: kube-system
+kind: ConfigMap

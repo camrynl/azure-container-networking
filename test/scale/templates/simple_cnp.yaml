@@ -1,12 +1,11 @@
+apiVersion: "cilium.io/v2"
 kind: CiliumNetworkPolicy
-apiVersion: cilium.io/v2
 metadata:
   name: TEMP_NAME
   namespace: scale-test
 spec:
   endpointSelector:
     matchLabels:
-      app: scale-test
       TEMP_LABEL_NAME: val
   egress:
     - toEndpoints:
@@ -15,10 +14,12 @@ spec:
           "k8s:k8s-app": kube-dns
       toPorts:
         - ports:
-            - port: "53"
-              protocol: ANY
+           - port: "53"
+             protocol: UDP
+           - port: "53"
+             protocol: TCP
           rules:
             dns:
-              - matchPattern: "*"
+              - TEMP_DNS_PATTERN_1: val
     - toFQDNs:
-      - matchName: "www.bing.com"
+        - TEMP_FQDN_PATTERN_1: val

@@ -391,14 +391,16 @@ cilium-dualstack-up: rg-up overlay-net-up ## Brings up a Cilium Dualstack Overla
 		--node-os-upgrade-channel $(NODEUPGRADE) \
 		--kubernetes-version $(K8S_VER) \
 		--node-count $(NODE_COUNT) \
-		--node-vm-size $(VM_SIZE) \
+		--node-vm-size Standard_D4_v3 \
 		--network-plugin azure \
 		--network-plugin-mode overlay \
 		--network-dataplane cilium \
 		--subscription $(SUB) \
 		--ip-families ipv4,ipv6 \
+		--load-balancer-sku standard \
 		--aks-custom-headers AKSHTTPCustomFeatures=Microsoft.ContainerService/AzureOverlayDualStackPreview \
 		--no-ssh-key \
+		--enable-acns \
 		--yes
 	@$(MAKE) set-kubeconf
 
