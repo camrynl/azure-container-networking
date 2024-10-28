@@ -122,13 +122,14 @@ overlay-byocni-nokubeproxy-up: rg-up overlay-net-up ## Brings up an Overlay BYO 
 		--kubernetes-version $(K8S_VER) \
 		--node-count $(NODE_COUNT) \
 		--node-vm-size $(VM_SIZE) \
-		--load-balancer-sku basic \
+		--load-balancer-sku standard \
 		--network-plugin none \
 		--network-plugin-mode overlay \
-		--pod-cidr 192.168.0.0/16 \
+		--pod-cidr 100.64.0.0/10 \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
 		--no-ssh-key \
-		--kube-proxy-config ./kube-proxy.json \
+		--kube-proxy-config root/tmpsrc/kube-proxy.json \
+		--tier standard \
 		--yes
 	@$(MAKE) set-kubeconf
 
@@ -417,7 +418,10 @@ dualstack-byocni-nokubeproxy-up: rg-up overlay-net-up ## Brings up a Dualstack o
 		--ip-families ipv4,ipv6 \
 		--aks-custom-headers AKSHTTPCustomFeatures=Microsoft.ContainerService/AzureOverlayDualStackPreview \
 		--no-ssh-key \
-		--kube-proxy-config ./kube-proxy.json \
+		--kube-proxy-config root/tmpsrc/kube-proxy.json \
+		--pod-cidr 100.64.0.0/10 \
+		--load-balancer-sku standard \
+		--tier standard \
 		--yes
 	@$(MAKE) set-kubeconf
 

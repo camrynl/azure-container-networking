@@ -1,0 +1,15 @@
+apiVersion: cilium.io/v2
+kind: CiliumClusterwideNetworkPolicy
+metadata:
+  name: TEMP_NAME
+spec:
+  endpointSelector: 
+    matchLabels:
+      app: scale-test
+      TEMP_LABEL_NAME: val
+  egress:
+  - toEndpoints:
+    - {}
+  ingress:
+  - fromEndpoints:
+    - {}

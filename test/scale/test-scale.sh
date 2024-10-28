@@ -44,6 +44,8 @@ OPTIONAL PARAMETERS:
     --real-pod-type                             select deployment type. Options are agnhost or nginx. Default is agnhost
     --num-cilium-network-policies               Cilium NetPols applied to every Pod
     --num-unapplied-cilium-network-policies     Cilium NetPols that do not target any Pod
+    --num-cilium-clusterwide-policies           Cilium Clusterwide NetPols applied to every Pod
+    --num-unapplied-cilium-clusterwide-policies Cilium Clusterwide NetPols that do not target any Pod
 
 OPTIONAL PARAMETERS TO TEST DELETION:
     --sleep-after-creation=<int>          seconds to sleep after creating everything. Default is 0
@@ -60,6 +62,8 @@ OPTIONAL PARAMETERS TO TEST DELETION:
     --delete-cilnetpols                   delete and readd all CiliumNetworkPolicies
     --delete-cilnetpols-interval=<int>    seconds to wait after deleting or readding. Default is 60
     --delete-cilnetpols-times=<int>       number of times to delete and readd. Default is 1
+    --delete-cilclusterwidepols           delete and readd all CiliumClusterwideNetworkPolicies
+    --delete-cilclusterwidepols-interval=<int> seconds to wait after deleting or readding. Default is 60
 EOF
 }
 
@@ -105,6 +109,12 @@ while [[ $# -gt 0 ]]; do
             ;;
         --num-unapplied-cilium-network-policies=*)
             numUnappliedCiliumNetworkPolicies="${1#*=}"
+            ;;
+        --num-cilium-clusterwide-policies=*)
+            numCiliumClusterwidePolicies="${1#*=}"
+            ;;
+        --num-unapplied-cilium-clusterwide-policies=*)
+            numUnappliedCiliumClusterwidePolicies="${1#*=}"
             ;;
         --num-unique-labels-per-pod=*)
             numUniqueLabelsPerPod="${1#*=}"
@@ -205,6 +215,10 @@ if [[ -z $numCiliumNetworkPolicies ]]; then numCiliumNetworkPolicies=0; fi
 
 if [[ -z $numUnappliedCiliumNetworkPolicies ]]; then numUnappliedCiliumNetworkPolicies=0; fi
 
+if [[ -z $numCiliumClusterwidePolicies ]]; then numCiliumClusterwidePolicies=0; fi
+
+if [[ -z $numUnappliedCiliumClusterwidePolicies ]]; then numUnappliedCiliumClusterwidePolicies=0; fi
+
 if [[ -z $KUBECTL ]]; then
     KUBECTL="kubectl"
 fi
@@ -220,6 +234,8 @@ if [[ -z $deleteNetpolsInterval ]]; then deleteNetpolsInterval=60; fi
 if [[ -z $deleteNetpolsTimes ]]; then deleteNetpolsTimes=1; fi
 if [[ -z $deleteCilNetpolsInterval ]]; then deleteCilNetpolsInterval=60; fi
 if [[ -z $deleteCilNetpolsTimes ]]; then deleteCilNetpolsTimes=1; fi
+if [[ -z $deleteCilClusterwidePolsInterval ]]; then deleteCilClusterwidePolsInterval=60; fi
+if [[ -z $deleteCilClusterwidePolsTimes ]]; then deleteCilClusterwidePolsTimes=1; fi
 
 ## CALCULATIONS
 numKwokPods=$(( $numKwokDeployments * $numKwokReplicas ))
@@ -271,6 +287,8 @@ numNetworkPolicies=$numNetworkPolicies
 numUnappliedNetworkPolicies=$numUnappliedNetworkPolicies
 numCiliumNetworkPolicies=$numCiliumNetworkPolicies
 numUnappliedCiliumNetworkPolicies=$numUnappliedCiliumNetworkPolicies
+numCiliumClusterwidePolicies=$numCiliumClusterwidePolicies
+numUnappliedCiliumClusterwidePolicies=$numUnappliedCiliumClusterwidePolicies
 
 Delete arguments (optional):
 deleteKwokPods=$deleteKwokPods
@@ -286,6 +304,8 @@ deleteNetpolsTimes=$deleteNetpolsTimes
 deleteCilNetpols=$deleteCilNetpols
 deleteCilNetpolsInterval=$deleteCilNetpolsInterval
 deleteCilNetpolsTimes=$deleteCilNetpolsTimes
+deleteCilClusterwidePols=$deleteCilClusterwidePols
+deleteCilClusterwidePolsInterval=$deleteCilClusterwidePolsInterval
 
 The following will be created:
 kwok Nodes: $numKwokNodes
@@ -370,6 +390,8 @@ mkdir -p generated/deployments/kwok/
 mkdir -p generated/services/real/
 mkdir -p generated/ciliumnetworkpolicies/applied
 mkdir -p generated/ciliumnetworkpolicies/unapplied
+mkdir -p generated/ciliumclusterwidenetworkpolicies/applied
+mkdir -p generated/ciliumclusterwidenetworkpolicies/unapplied
 
 generateDeployments() {
     local numDeployments=$1
@@ -437,6 +459,23 @@ generateDeployments() {
                 sed "s/TEMP_NAME/policy-$i/g" templates/ciliumnetworkpolicy.yaml > $fileName
                 cnpLabel="$labelPrefix-00001"
                 sed -i "s/TEMP_LABEL_NAME/$cnpLabel/g" $fileName
+            fi
+
+            ccnp_percent=0
+            if [[ $numCiliumClusterwidePolicies == 25 ]]; then
+                ccnp_percent=$((numDeployments/4))
+            elif [[ $numCiliumClusterwidePolicies == 50 ]]; then
+                ccnp_percent=$((numDeployments/2))
+            elif [[ $numCiliumClusterwidePolicies == 100 ]]; then
+                ccnp_percent=$numDeployments
+            fi
+            echo "creating $ccnp_percent ciliumclusterwidenetworkpolicies"
+            
+            if [[ $num -le $ccnp_percent ]]; then
+                fileName=generated/ciliumclusterwidenetworkpolicies/applied/policy-$i.yaml
+                sed "s/TEMP_NAME/policy-$i/g" templates/ciliumclusterwidenetworkpolicy.yaml > $fileName
+                ccnpLabel="$labelPrefix-00001"
+                sed -i "s/TEMP_LABEL_NAME/$ccnpLabel/g" $fileName
             fi
 
         else
@@ -508,6 +547,11 @@ done
 for j in $(seq 1 $numUnappliedCiliumNetworkPolicies ); do
     i=`printf "%05d" $j`
     sed "s/TEMP_NAME/unapplied-policy-$i/g" templates/unapplied-ciliumnetworkpolicy.yaml > generated/ciliumnetworkpolicies/unapplied/unapplied-policy-$i.yaml
+done
+
+for j in $(seq 1 $numUnappliedCiliumClusterwidePolicies ); do
+    i=`printf "%05d" $j`
+    sed "s/TEMP_NAME/unapplied-policy-$i/g" templates/unapplied-ciliumclusterwidenetworkpolicy.yaml > generated/ciliumclusterwidenetworkpolicies/unapplied/unapplied-policy-$i.yaml
 done
 
 for i in $(seq -f "%05g" 1 $numKwokNodes); do
@@ -592,6 +636,16 @@ fi
 if [[ $numCiliumNetworkPolicies -gt 0 ]]; then
     set -x
     $KUBECTL $KUBECONFIG_ARG apply -f generated/ciliumnetworkpolicies/applied
+    set +x
+fi
+if [[ $numUnappliedCiliumClusterwidePolicies -gt 0 ]]; then
+    set -x
+    $KUBECTL $KUBECONFIG_ARG apply -f generated/ciliumclusterwidenetworkpolicies/unapplied
+    set +x
+fi
+if [[ $numCiliumClusterwidePolicies -gt 0 ]]; then
+    set -x
+    $KUBECTL $KUBECONFIG_ARG apply -f generated/ciliumclusterwidenetworkpolicies/applied
     set +x
 fi
 
@@ -753,6 +807,30 @@ if [[ $deleteCilNetpols == true ]]; then
         set +x
         echo "sleeping $deleteCilNetpolsInterval seconds after readding cilium network policies (end of round $i/$deleteCilNetpolsTimes)..."
         sleep $deleteCilNetpolsInterval
+    done
+fi
+
+if [[ $deleteCilClusterwidePols == true ]]; then
+    echo "deleting cilium clusterwide network policies..."
+    for i in $(seq 1 $deleteCilClusterwidePolsTimes); do
+        echo "deleting cilium clusterwide network policies. round $i/$deleteCilClusterwidePolsTimes..."
+        set -x
+        $KUBECTL $KUBECONFIG_ARG delete netpol --all
+        set +x
+        echo "sleeping $deleteCilClusterwidePolsInterval seconds after deleting cilium clusterwide network policies (round $i/$deleteCilClusterwidePolsTimes)..."
+        sleep $deleteCilClusterwidePolsInterval
+
+        echo "re-adding network policies. round $i/$deleteCilClusterwidePolsTimes..."
+        set -x
+        if [[ $numUnappliedCiliumClusterwidePolicies -gt 0 ]]; then
+            $KUBECTL $KUBECONFIG_ARG apply -f generated/ciliumclusterwidenetworkpolicies/unapplied
+        fi
+        if [[ $numCiliumClusterwidePolicies -gt 0 ]]; then
+            $KUBECTL $KUBECONFIG_ARG apply -f generated/ciliumclusterwidenetworkpolicies/applied
+        fi
+        set +x
+        echo "sleeping $deleteCilClusterwidePolsInterval seconds after readding cilium clusterwide network policies (end of round $i/$deleteCilClusterwidePolsTimes)..."
+        sleep $deleteCilClusterwidePolsInterval
     done
 fi
 
