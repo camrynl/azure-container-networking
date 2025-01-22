@@ -15,11 +15,14 @@ data:
   cluster-name: default
   debug: "false"
   disable-cnp-status-updates: "true"
-  disable-endpoint-crd: "false"
+  disable-endpoint-crd: "true"
   dnsproxy-enable-transparent-mode: "false"
   enable-auto-protect-node-port-range: "true"
   enable-bgp-control-plane: "false"
   enable-bpf-clock-probe: "true"
+  enable-k8s-network-policy: "false"
+  enable-cilium-network-policy: "false"
+  enable-cilium-clusterwide-network-policy: "false"
   enable-endpoint-health-checking: "false"
   enable-endpoint-routes: "true"
   enable-health-check-nodeport: "true"
@@ -36,7 +39,7 @@ data:
   enable-local-node-route: "false"
   enable-local-redirect-policy: "false"
   enable-metrics: "true"
-  enable-policy: default
+  enable-policy: never
   enable-remote-node-identity: "true"
   enable-session-affinity: "true"
   enable-svc-source-range-check: "true"
