@@ -151,6 +151,8 @@ stages:
                       CNS=$(UPGRADE_CNS_VERSION)
                       echo "UPGRADE_CNS_VERSION is set to $CNS"
                     fi
+                    IPAM_IMAGE_REPO=$(UPGRADE_IPAM_IMAGE_REPO)
+                    CNS_IMAGE_REPO=$(UPGRADE_CNS_IMAGE_REPO)
                   else
                     if [ -z "$TEST_CNS_VERSION" ]
                     then
@@ -163,7 +165,7 @@ stages:
                   fi
 
                   if [ "${{parameters.os}}" == "windows" ]; then
-                    sudo -E env "PATH=$PATH" make test-load CNS_ONLY=true CNS_VERSION=$(make cns-version) CNI_VERSION=$(make cni-version) INSTALL_CNS=true INSTALL_AZURE_CNI_OVERLAY=true CNS_IMAGE_REPO=$(CNS_IMAGE_REPO)
+                    sudo -E env "PATH=$PATH" make test-load CNS_ONLY=true CNS_VERSION=${CNS} CNI_VERSION=$(make cni-version) INSTALL_CNS=true INSTALL_AZURE_CNI_OVERLAY=true CNS_IMAGE_REPO=$(CNS_IMAGE_REPO)
                   else
                     sudo -E env "PATH=$PATH" make test-integration CNS_VERSION=${CNS} CNI_VERSION=$(make cni-version) INSTALL_CNS=true INSTALL_AZURE_CNI_OVERLAY=true CNS_IMAGE_REPO=$(CNS_IMAGE_REPO)
                   fi
@@ -191,6 +193,8 @@ stages:
                       CNS=$(UPGRADE_CNS_VERSION)
                       echo "UPGRADE_CNS_VERSION is set to $CNS"
                     fi
+                    IPAM_IMAGE_REPO=$(UPGRADE_IPAM_IMAGE_REPO)
+                    CNS_IMAGE_REPO=$(UPGRADE_CNS_IMAGE_REPO)
                   else
                     if [ -z "$TEST_CNS_VERSION" ]
                     then
@@ -202,9 +206,9 @@ stages:
                     fi
                   fi
                   if [ "${{parameters.os}}" == "windows" ]; then
-                    sudo -E env "PATH=$PATH" make test-load CNS_ONLY=true CNS_VERSION=$(make cns-version) CNI_VERSION=$(make cni-version) INSTALL_CNS=true INSTALL_AZURE_VNET=true CNS_IMAGE_REPO=$(CNS_IMAGE_REPO)
+                    sudo -E env "PATH=$PATH" make test-load CNS_ONLY=true CNS_VERSION=${CNS} CNI_VERSION=$(make cni-version) INSTALL_CNS=true INSTALL_AZURE_VNET=true CNS_IMAGE_REPO=$(CNS_IMAGE_REPO)
                   else
-                    sudo -E env "PATH=$PATH" make test-integration CNS_VERSION=$(make cns-version) CNI_VERSION=$(make cni-version) INSTALL_CNS=true INSTALL_AZURE_VNET=true CNS_IMAGE_REPO=$(CNS_IMAGE_REPO)
+                    sudo -E env "PATH=$PATH" make test-integration CNS_VERSION=${CNS} CNI_VERSION=$(make cni-version) INSTALL_CNS=true INSTALL_AZURE_VNET=true CNS_IMAGE_REPO=$(CNS_IMAGE_REPO)
                   fi
               name: "swifte2e"
               displayName: "Swift Integration"
