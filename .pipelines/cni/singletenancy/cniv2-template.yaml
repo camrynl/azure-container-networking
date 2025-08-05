@@ -245,6 +245,8 @@ stages:
           tag: $(npmVersion)
           dependsOn: integration
           continueOnError: true
+          ${{ if eq(parameters.upgradeScenario, 'true') }}:
+            logType: upgradeNpmLogs
       - job: deploy_pods
         condition: and( and( not(canceled()), not(failed()) ), or( contains(variables.CONTROL_SCENARIO, 'scaleTest') , contains(variables.CONTROL_SCENARIO, 'all') ) )
         displayName: "Scale Test"
@@ -258,6 +260,8 @@ stages:
               iterations: ${{ parameters.iterations }}
               nodeCount: $(nodeCount)
               cni: cniv2
+              ${{ if eq(parameters.upgradeScenario, 'true') }}:
+                logType: upgradeScaleTest
           - template: ../load-test-templates/validate-state-template.yaml
             parameters:
               clusterName: ${{ parameters.clusterName }}-$(commitID)
@@ -293,6 +297,8 @@ stages:
               cni: cniv2
               scaleup: ${{ parameters.scaleup }}
               nodeCount: ${{ parameters.nodeCount }}
+              ${{ if eq(parameters.upgradeScenario, 'true') }}:
+                logType: upgradeRestartCNS
       - job: recover
         condition: and( not(canceled()), not(failed()) )
         displayName: "Recover Resources"
