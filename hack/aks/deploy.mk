@@ -1,8 +1,8 @@
 # acnpublic: acnpublic.azurecr.io
 # general cilium variables
-DIR 									?= 1.17
-CILIUM_VERSION_TAG               		?= v1.17.7-250927
-CILIUM_IMAGE_REGISTRY           		?= mcr.microsoft.com/containernetworking
+DIR 									?= 1.19
+CILIUM_VERSION_TAG               		?= 295a5b3b15-260515
+CILIUM_IMAGE_REGISTRY           		?= acnpublic.azurecr.io/cilium/cilium
 IPV6_IMAGE_REGISTRY						?= mcr.microsoft.com/containernetworking
 IPV6_HP_BPF_VERSION               		?= v0.0.1
 CILIUM_LOG_COLLECTOR_IMAGE_REGISTRY 	?= mcr.microsoft.com/containernetworking
